@@ -89,22 +89,35 @@ const FEED_TIMEOUT_MS = 6000;
 /*                               String Helpers                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * Strip raw Hacker News feed boilerplate ("Article URL: …", "Comments URL: …",
+ * "Points: N # Comments: M") from summary/body text.
+ */
+export function stripFeedMetadata(raw?: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/Article URL:\s*https?:\/\/\S+/gi, "")
+    .replace(/Comments URL:\s*https?:\/\/\S+/gi, "")
+    .replace(/Points:\s*\d+\s*#\s*Comments:\s*\d+/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Strip HTML tags and entities from RSS summaries. */
 export function cleanSnippet(raw?: string): string {
   if (!raw) return "";
-  return raw
-    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
-    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/&nbsp;/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 340);
+  return stripFeedMetadata(
+    raw
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+      .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&#039;/g, "'")
+      .replace(/&nbsp;/g, " ")
+  ).slice(0, 340);
 }
 
 /** Strip tracking query parameters from article links. */

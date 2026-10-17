@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { ArrowUpRight } from "lucide-react";
 import type { EditorialCartoon as EditorialCartoonType } from "@/types/subh";
 
@@ -312,21 +312,6 @@ export function EditorialCartoon({
   leadStoryHeadline,
   onSelectStory,
 }: EditorialCartoonProps) {
-  const [imageLoaded, setImageLoaded] = useState(false);
-  const [imageError, setImageError] = useState(false);
-
-  // Reset image load state when cartoon URL changes, with a timeout fallback
-  useEffect(() => {
-    setImageLoaded(false);
-    setImageError(false);
-    const timer = setTimeout(() => {
-      setImageLoaded((loaded) => {
-        if (!loaded) setImageError(true);
-        return loaded;
-      });
-    }, 5000);
-    return () => clearTimeout(timer);
-  }, [cartoon.imageUrl]);
 
   const handleSelectStory = () => {
     if (onSelectStory) {
@@ -358,27 +343,13 @@ export function EditorialCartoon({
         <span className="text-[#4a4742] font-semibold">PLATE NO. 1</span>
       </div>
 
-      {/* Lithograph Image Container — always displays museum-grade vector ink engraving as base/fallback */}
+      {/* Lithograph Image Container — always renders the built-in vector ink engraving (no external image service) */}
       <div
         onClick={handleSelectStory}
         className="relative w-full overflow-hidden border border-[#111111] bg-[#f7f3e8] flex items-center justify-center cursor-pointer"
         title="Click to inspect Lead Story #1"
       >
-        {(!imageLoaded || imageError) && <EditorialLithographSvg />}
-
-        {!imageError && cartoon.imageUrl && (
-          /* eslint-disable-next-line @next/next/no-img-element */
-          <img
-            src={cartoon.imageUrl}
-            alt={cartoon.caption}
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
-            className={`w-full h-auto block -mb-7 grayscale contrast-125 mix-blend-multiply transition-opacity duration-300 ${
-              imageLoaded ? "opacity-100 relative" : "opacity-0 absolute inset-0"
-            }`}
-            loading="lazy"
-          />
-        )}
+        <EditorialLithographSvg />
       </div>
 
       {/* Caption & Story Link */}

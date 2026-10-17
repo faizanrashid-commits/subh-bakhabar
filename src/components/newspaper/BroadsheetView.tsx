@@ -18,6 +18,40 @@ import { StoryModal } from "@/components/modals/StoryModal";
 import { OnboardingModal } from "@/components/modals/OnboardingModal";
 import { ChiefEditorDrawer } from "@/components/modals/ChiefEditorDrawer";
 
+const SECTION_NAV = [
+  { id: "section-1", label: "I. FRONT PAGE & LENSES" },
+  { id: "section-2", label: "II. EVOLVING THREADS & HORIZON" },
+  { id: "section-3", label: "III. ECONOMIST BRIEFING (INCUBATOR)" },
+  { id: "section-4", label: "IV. RETENTION QUIZ" },
+];
+
+/** Bold broadsheet section header banner. */
+function SectionBanner({
+  numeral,
+  title,
+  subtitle,
+}: {
+  numeral: string;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <div className="bg-[#141413] text-[#FAF7F2] px-5 py-3 my-8 rounded-sm border-l-[6px] border-[#8C2D19] flex flex-wrap items-center justify-between gap-2 shadow-xs">
+      <div className="flex items-center">
+        <span className="bg-[#8C2D19] text-white px-2.5 py-0.5 text-xs font-mono font-bold tracking-widest uppercase mr-3">
+          SECTION {numeral}
+        </span>
+        <h2 className="text-lg md:text-xl font-serif font-bold tracking-tight text-white">
+          {title}
+        </h2>
+      </div>
+      <span className="font-mono text-[11px] text-[#D5CFC2] uppercase tracking-wider">
+        {subtitle}
+      </span>
+    </div>
+  );
+}
+
 interface BroadsheetViewProps {
   edition: Edition;
   allEditions: EditionSummary[];
@@ -162,6 +196,27 @@ export function BroadsheetView({
   const isExecutiveBento =
     presentationMode === "executive" || editorialTone === "executive";
 
+  // Scroll-spy: highlight the section currently in view
+  const [activeSection, setActiveSection] = useState<string>("section-1");
+  useEffect(() => {
+    if (isExecutiveBento || typeof IntersectionObserver === "undefined") return;
+    const els = SECTION_NAV.map((s) => document.getElementById(s.id)).filter(
+      (el): el is HTMLElement => !!el
+    );
+    if (els.length === 0) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) setActiveSection(visible[0].target.id);
+      },
+      { rootMargin: "-80px 0px -55% 0px", threshold: 0 }
+    );
+    els.forEach((el) => observer.observe(el));
+    return () => observer.disconnect();
+  }, [isExecutiveBento, currentEdition, incubatorStory]);
+
   const sharedCardProps = {
     presentationMode,
     editorialTone,
@@ -239,6 +294,40 @@ export function BroadsheetView({
         onOpenOnboarding={() => setIsOnboardingOpen(true)}
         onEditionGenerated={(newEd) => setCurrentEdition(newEd)}
       />
+
+      {/* STICKY SECTION JUMP-BAR (scroll-spy) */}
+      {!isExecutiveBento && (
+        <nav
+          aria-label="Section navigation"
+          className="sticky top-0 z-30 bg-[#FAF7F2]/95 backdrop-blur-sm border-y-2 border-[#141413] py-2 px-4 mb-6 shadow-xs no-print"
+        >
+          <div className="flex flex-wrap items-center justify-center gap-1.5 font-mono text-[11px] uppercase tracking-wider">
+            {SECTION_NAV.filter(
+              (s) => s.id !== "section-3" || incubatorStory
+            ).map((s) => (
+              <a
+                key={s.id}
+                href={`#${s.id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  setActiveSection(s.id);
+                  document
+                    .getElementById(s.id)
+                    ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
+                aria-current={activeSection === s.id ? "true" : undefined}
+                className={`px-3 py-1.5 rounded-sm transition-colors cursor-pointer ${
+                  activeSection === s.id
+                    ? "bg-[#141413] text-[#FAF7F2] font-semibold"
+                    : "text-[#4A463F] hover:bg-[#EAE4D7]"
+                }`}
+              >
+                {s.label}
+              </a>
+            ))}
+          </div>
+        </nav>
+      )}
 
       {/* ADAPTIVE EDITORIAL VOICE BANNER (when Socratic active) */}
       {editorialTone === "socratic" && !isExecutiveBento && (
@@ -344,9 +433,15 @@ export function BroadsheetView({
         <>
           {/* 2. FOLD I: Asymmetric Front-Page Broadsheet Grid */}
           <section
+            id="section-1"
             aria-label="Page One Front Page"
-            className="print-sheet-1 mb-10"
+            className="print-sheet-1 scroll-mt-16 mb-10"
           >
+            <SectionBanner
+              numeral="I"
+              title="Front Page & Life Lenses"
+              subtitle="TODAY'S LEAD INTERSECTIONS · YOUR LIFE-LENS DISPATCHES"
+            />
             <div className="print-grid-12 grid grid-cols-1 lg:grid-cols-12 lg:divide-x lg:divide-[#c8c2b6] items-start">
               {/* Left 8 Columns */}
               <div className="print-col-8 lg:col-span-8 lg:pr-6">
@@ -419,6 +514,13 @@ export function BroadsheetView({
                     </aside>
                   </div>
                 </div>
+
+                {/* 3rd Life-Lens Dispatch: balances left/right column heights */}
+                {lifeLensStories[2] && (
+                  <div className="print-compact-mb mt-8 pt-6 border-t border-[#c8c2b6]">
+                    <StoryCard story={lifeLensStories[2]} {...sharedCardProps} />
+                  </div>
+                )}
               </div>
 
               {/* Right 4 Columns: Stacked 3 Life-Lens Dispatches */}
@@ -431,7 +533,7 @@ export function BroadsheetView({
                 </div>
 
                 <div className="space-y-8">
-                  {lifeLensStories.map((story) => (
+                  {lifeLensStories.slice(0, 2).map((story) => (
                     <div key={story.id} className="print-compact-mb">
                       <StoryCard story={story} {...sharedCardProps} />
                     </div>
@@ -443,17 +545,15 @@ export function BroadsheetView({
 
           {/* 3. FOLD II: Continuing Story & Beyond Your Bubble */}
           <section
+            id="section-2"
             aria-label="Fold II: Continuity & Discovery"
-            className="print-sheet-2 newspaper-double-rule-top pt-3 mb-10"
+            className="print-sheet-2 scroll-mt-16 mb-10"
           >
-            <div className="border-b border-[#141413] pb-1.5 mb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono uppercase tracking-widest text-[#141413]">
-              <span className="font-bold text-[#8C2D19]">
-                ■ SECTION II · EVOLVING THREADS &amp; HORIZON DISPATCH
-              </span>
-              <span className="text-[#4a4742]">
-                WHAT CHANGED SINCE YESTERDAY · BEYOND YOUR BUBBLE
-              </span>
-            </div>
+            <SectionBanner
+              numeral="II"
+              title="Evolving Threads & Horizon Dispatch"
+              subtitle="WHAT CHANGED SINCE YESTERDAY · BEYOND YOUR BUBBLE"
+            />
 
             <div className="print-grid-12 grid grid-cols-1 lg:grid-cols-12 lg:divide-x lg:divide-[#c8c2b6] items-start">
               <div className="print-col-7 lg:col-span-7 lg:pr-6 pb-6 lg:pb-0">
@@ -477,18 +577,15 @@ export function BroadsheetView({
           {/* 4. FOLD III: Dedicated Full-Width Editorial Feature Spread for the Incubator */}
           {incubatorStory && (
             <section
+              id="section-3"
               aria-label="Fold III: Special Briefing Incubator"
-              className="print-avoid-break newspaper-double-rule-top pt-3 mb-10"
+              className="print-avoid-break scroll-mt-16 mb-10"
             >
-              <div className="border-b border-[#141413] pb-1.5 mb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono uppercase tracking-widest text-[#141413]">
-                <span className="font-bold text-[#8C2D19]">
-                  ■ SECTION III · THE ECONOMIST-STYLE SPECIAL BRIEFING &amp;
-                  INCUBATOR
-                </span>
-                <span className="text-[#4a4742]">
-                  DAILY MASTERY DOSSIER · ANALYTICAL SYLLABUS
-                </span>
-              </div>
+              <SectionBanner
+                numeral="III"
+                title="Economist-Style Briefing (Incubator)"
+                subtitle="DAILY MASTERY DOSSIER · ANALYTICAL SYLLABUS"
+              />
 
               <div className="w-full">
                 <StoryCard
@@ -504,7 +601,12 @@ export function BroadsheetView({
 
       {/* 5. BOTTOM FOOTER: Morning News Quiz & Colophon */}
       <footer className="w-full">
-        <div className="no-print">
+        <div id="section-4" className="no-print scroll-mt-16">
+          <SectionBanner
+            numeral="IV"
+            title="Morning Retention Quiz"
+            subtitle="LOCK IN WHAT YOU READ · 60-SECOND RECALL"
+          />
           <DailyRetentionQuiz
             quiz={currentEdition.dailyQuiz}
             editionDate={currentEdition.date}

@@ -31,6 +31,20 @@ interface StoryCardProps {
   onProfileMutated?: (profile: UserProfile, summary: string) => void;
 }
 
+/**
+ * Display sanitizer: strips raw Hacker News feed metadata ("Article URL: …",
+ * "Comments URL: …", "Points: N # Comments: M") from subheadline/body text.
+ */
+function sanitizeFeedText(raw?: string): string {
+  if (!raw) return "";
+  return raw
+    .replace(/Article URL:\s*https?:\/\/\S+/gi, "")
+    .replace(/Comments URL:\s*https?:\/\/\S+/gi, "")
+    .replace(/Points:\s*\d+\s*#\s*Comments:\s*\d+/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function formatSourceByline(sources: string[]): string {
   if (sources.length === 0) return "STAFF DISPATCH";
   const upper = sources.map((s) => s.toUpperCase());
@@ -75,12 +89,12 @@ function buildExecutiveBullets(story: StoryItem): Array<{
   leadMetric: string;
   detail: string;
 }> {
-  const sentences = story.reportedFacts
+  const sentences = sanitizeFeedText(story.reportedFacts)
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())
     .filter(Boolean);
 
-  const bullet1Text = sentences[0] || story.subheadline;
+  const bullet1Text = sentences[0] || sanitizeFeedText(story.subheadline);
   const bullet2Text =
     sentences.slice(1, 3).join(" ") ||
     `Cross-lens impact (${story.includedBecause}): ${story.whyYou}`;
@@ -421,7 +435,7 @@ export function StoryCard({
           </h2>
 
           <p className="font-serif italic text-sm text-[#4A463F] border-l-2 border-[#8C2D19] pl-3 my-2.5">
-            {story.subheadline}
+            {sanitizeFeedText(story.subheadline)}
           </p>
 
           <ul className="mt-3 space-y-2 text-xs font-serif text-[#2C2A26] leading-relaxed list-none">
@@ -509,7 +523,7 @@ export function StoryCard({
 
         {/* Subheadline / Deck */}
         <p className="font-serif text-[#3d3a35] italic leading-snug text-[15px] mb-3">
-          {story.subheadline}
+          {sanitizeFeedText(story.subheadline)}
         </p>
 
         {/* Compact Source Citations Pill Strip (No extra horizontal rules) */}
@@ -537,7 +551,7 @@ export function StoryCard({
             useMultiColBody ? "md:columns-2 gap-6 print-cols-2" : ""
           }`}
         >
-          <p className="drop-cap">{story.reportedFacts}</p>
+          <p className="drop-cap">{sanitizeFeedText(story.reportedFacts)}</p>
         </div>
 
         {/* Framing Divergence Two-Tone Comparison Card */}
