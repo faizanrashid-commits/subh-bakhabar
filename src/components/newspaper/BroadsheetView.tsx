@@ -197,12 +197,15 @@ export function BroadsheetView({ edition, allEditions }: BroadsheetViewProps) {
       )}
 
       {/* 2. FOLD I: Asymmetric Front-Page Broadsheet Grid */}
-      <section aria-label="Page One Front Page" className="mb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-12 lg:divide-x lg:divide-[#c8c2b6] items-start">
+      <section aria-label="Page One Front Page" className="print-sheet-1 mb-8">
+        <div className="print-grid-12 grid grid-cols-1 lg:grid-cols-12 lg:divide-x lg:divide-[#c8c2b6] items-start">
           {/* Left 8 Columns */}
-          <div className="lg:col-span-8 lg:pr-6">
+          <div className="print-col-8 lg:col-span-8 lg:pr-6">
             {lead1 && (
-              <div className="border-b border-[#111111] pb-6 mb-6">
+              <div
+                id="story-lead-1"
+                className="border-b border-[#111111] pb-6 mb-6 print-compact-mb"
+              >
                 <StoryCard
                   story={lead1}
                   featured={true}
@@ -212,22 +215,27 @@ export function BroadsheetView({ edition, allEditions }: BroadsheetViewProps) {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-12 md:divide-x md:divide-[#c8c2b6] items-start">
-              <div className="md:col-span-7 md:pr-5">
+            <div className="print-grid-12 grid grid-cols-1 md:grid-cols-12 md:divide-x md:divide-[#c8c2b6] items-start">
+              <div className="print-col-7 md:col-span-7 md:pr-5">
                 {lead2 && <StoryCard story={lead2} {...sharedCardProps} />}
               </div>
 
-              <div className="md:col-span-5 md:pl-5 pt-6 md:pt-0 border-t md:border-t-0 border-[#c8c2b6] mt-6 md:mt-0">
+              <div className="print-col-5 md:col-span-5 md:pl-5 pt-6 md:pt-0 border-t md:border-t-0 border-[#c8c2b6] mt-6 md:mt-0">
                 <EditorialCartoon
                   cartoon={currentEdition.editorialCartoon}
                   leadStoryHeadline={lead1?.headline}
+                  onSelectStory={() => {
+                    if (lead1) {
+                      setActiveModalStory(lead1);
+                    }
+                  }}
                 />
               </div>
             </div>
           </div>
 
           {/* Right 4 Columns: Stacked 3 Life-Lens Dispatches */}
-          <div className="lg:col-span-4 lg:pl-6 pt-8 lg:pt-0 border-t lg:border-t-0 border-[#111111] mt-8 lg:mt-0">
+          <div className="print-col-4 lg:col-span-4 lg:pl-6 pt-8 lg:pt-0 border-t lg:border-t-0 border-[#111111] mt-8 lg:mt-0">
             <div className="border-b-2 border-[#111111] pb-1 mb-4 flex items-center justify-between text-[11px] font-mono uppercase tracking-widest text-[#111111]">
               <span className="font-bold">LIFE-LENS DISPATCHES</span>
               <span className="text-[#4a4742]">COLUMN DIGEST</span>
@@ -240,7 +248,9 @@ export function BroadsheetView({ edition, allEditions }: BroadsheetViewProps) {
                   <div
                     key={story.id}
                     className={
-                      isLast ? "" : "border-b border-[#c8c2b6] pb-6 mb-6"
+                      isLast
+                        ? ""
+                        : "border-b border-[#c8c2b6] pb-6 mb-6 print-compact-mb"
                     }
                   >
                     <StoryCard story={story} {...sharedCardProps} />
@@ -255,7 +265,7 @@ export function BroadsheetView({ edition, allEditions }: BroadsheetViewProps) {
       {/* 3. FOLD II: Continuing Story & Beyond Your Bubble */}
       <section
         aria-label="Fold II: Continuity & Discovery"
-        className="newspaper-double-rule-top pt-3 mb-8"
+        className="print-sheet-2 newspaper-double-rule-top pt-3 mb-8"
       >
         <div className="border-b border-[#111111] pb-1.5 mb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono uppercase tracking-widest text-[#111111]">
           <span className="font-bold">
@@ -266,8 +276,8 @@ export function BroadsheetView({ edition, allEditions }: BroadsheetViewProps) {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 lg:divide-x lg:divide-[#c8c2b6] items-start">
-          <div className="lg:col-span-7 lg:pr-6 pb-6 lg:pb-0 border-b lg:border-b-0 border-[#111111]">
+        <div className="print-grid-12 grid grid-cols-1 lg:grid-cols-12 lg:divide-x lg:divide-[#c8c2b6] items-start">
+          <div className="print-col-7 lg:col-span-7 lg:pr-6 pb-6 lg:pb-0 border-b lg:border-b-0 border-[#111111]">
             {continuingStory && (
               <StoryCard
                 story={continuingStory}
@@ -277,7 +287,7 @@ export function BroadsheetView({ edition, allEditions }: BroadsheetViewProps) {
             )}
           </div>
 
-          <div className="lg:col-span-5 lg:pl-6 pt-6 lg:pt-0">
+          <div className="print-col-5 lg:col-span-5 lg:pl-6 pt-6 lg:pt-0">
             {beyondBubbleStory && (
               <StoryCard story={beyondBubbleStory} {...sharedCardProps} />
             )}
@@ -289,7 +299,7 @@ export function BroadsheetView({ edition, allEditions }: BroadsheetViewProps) {
       {incubatorStory && (
         <section
           aria-label="Fold III: Special Briefing Incubator"
-          className="newspaper-double-rule-top pt-3 mb-8"
+          className="print-avoid-break newspaper-double-rule-top pt-3 mb-8"
         >
           <div className="border-b border-[#111111] pb-1.5 mb-5 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono uppercase tracking-widest text-[#111111]">
             <span className="font-bold">
@@ -312,10 +322,12 @@ export function BroadsheetView({ edition, allEditions }: BroadsheetViewProps) {
 
       {/* 5. BOTTOM FOOTER: Morning News Quiz & Colophon */}
       <footer className="w-full">
-        <DailyRetentionQuiz
-          quiz={currentEdition.dailyQuiz}
-          editionDate={currentEdition.date}
-        />
+        <div className="no-print">
+          <DailyRetentionQuiz
+            quiz={currentEdition.dailyQuiz}
+            editionDate={currentEdition.date}
+          />
+        </div>
 
         {/* Newspaper Colophon & Printing Imprint */}
         <div className="newspaper-double-rule-top newspaper-double-rule py-4 px-2 text-center text-xs font-serif text-[#4a4742] space-y-1.5">

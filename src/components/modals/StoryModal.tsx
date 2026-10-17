@@ -31,8 +31,9 @@ export function StoryModal({
 
   if (!story) return null;
 
-  const primaryUrl = story.citations[0]?.url || "#";
-  const primarySource = story.citations[0]?.sourceName || "Original Publisher";
+  const primaryCitation = story.citations[0];
+  const primaryUrl = primaryCitation?.url || "#";
+  const primarySource = primaryCitation?.sourceName || "Original Publisher";
 
   return (
     <div
@@ -88,15 +89,15 @@ export function StoryModal({
             </span>
             <span className="text-[#4a4742]">·</span>
             <span className="text-[#4a4742] uppercase">VERIFIED CITATIONS:</span>
-            {story.citations.map((cite, idx) => (
+            {story.citations.map((citation, idx) => (
               <a
                 key={idx}
-                href={cite.url}
+                href={citation.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="font-bold underline text-[#111111] hover:text-[#4a4742]"
               >
-                {cite.sourceName} ↗
+                {citation.sourceName} ↗
               </a>
             ))}
           </div>

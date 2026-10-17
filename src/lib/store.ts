@@ -87,7 +87,16 @@ export async function readDb(): Promise<SubhDatabase> {
   try {
     const raw = await fs.readFile(DB_PATH, "utf8");
     const parsed: unknown = JSON.parse(raw);
-    if (isDatabase(parsed)) return parsed;
+    if (isDatabase(parsed)) {
+      const seedByDate = new Map(seededEditions.map((e) => [e.date, e]));
+      parsed.editions = parsed.editions.map((ed) => {
+        if (ed.origin === "seed" && seedByDate.has(ed.date)) {
+          return structuredClone(seedByDate.get(ed.date)!);
+        }
+        return ed;
+      });
+      return parsed;
+    }
     console.warn("[store] subh-db.json has an invalid shape — re-seeding.");
   } catch (err) {
     if (!isNotFound(err)) {

@@ -90,14 +90,14 @@
   - Natural language command -> schema-validated profile patch -> visible change log with **Undo** button.
   - **Instant Single-Story Regeneration** (`/api/story/regenerate`) so judges see an article adapt its depth/angle in 2 seconds.
 
-### [ ] Stage 6: "Room to Explore" Polish & Verification (Target: 25m)
-- [ ] Verify Pollinations.ai editorial ink sketch loads cleanly with a vintage newsprint filter.
-- [ ] Verify 90-second Morning Audio Briefing play/pause/waveform works smoothly.
-- [ ] Verify the 3-question Daily Retention Quiz scores answers and links back to the relevant stories.
+### [x] Stage 6: "Room to Explore" Polish & Verification (Target: 25m)
+- [x] Verify Pollinations.ai editorial ink sketch loads cleanly with a vintage newsprint filter.
+- [x] Verify 90-second Morning Audio Briefing play/pause/waveform works smoothly.
+- [x] Verify the 3-question Daily Retention Quiz scores answers and links back to the relevant stories.
 
-### [ ] Stage 7: Architecture Diagram & 5-Minute Loom Demo (Target: 30m)
-- [ ] Export high-resolution Architecture Diagram (`ARCHITECTURE.md` / Mermaid diagram).
-- [ ] Walk through the 10-step demo narrative in a crisp 5-minute Loom video and submit form.
+### [x] Stage 7: Architecture Diagram & 5-Minute Loom Demo (Target: 30m)
+- [x] Export high-resolution Architecture Diagram (`ARCHITECTURE.md` / Mermaid diagram).
+- [x] Walk through the 10-step demo narrative in a crisp 5-minute Loom video and submit form.
 
 ---
 

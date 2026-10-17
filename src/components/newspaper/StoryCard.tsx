@@ -162,7 +162,8 @@ export function StoryCard({
   const bylineText = formatSourceByline(
     story.citations.map((c) => c.sourceName)
   );
-  const primaryUrl = story.citations[0]?.url || "#";
+  const primaryCitation = story.citations[0];
+  const primaryUrl = primaryCitation?.url || "#";
 
   // Adaptive Presentation Mode: Executive 3-Min Dispatch
   if (presentationMode === "executive") {
@@ -186,22 +187,22 @@ export function StoryCard({
             </div>
 
             <div className="flex items-center gap-2">
-              {story.citations.map((cite, i) => (
+              {story.citations.map((citation, i) => (
                 <a
                   key={i}
-                  href={cite.url}
+                  href={citation.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline font-semibold text-[#111111]"
                 >
-                  {cite.sourceName} ↗
+                  {citation.sourceName} ↗
                 </a>
               ))}
               <a
                 href={primaryUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="font-bold text-[#111111] hover:underline"
+                className="no-print font-bold text-[#111111] hover:underline"
               >
                 [ Read Original Article ↗ ]
               </a>
@@ -340,16 +341,16 @@ export function StoryCard({
 
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
             <span>SOURCES:</span>
-            {story.citations.map((cite, i) => (
+            {story.citations.map((citation, i) => (
               <a
                 key={i}
-                href={cite.url}
+                href={citation.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[#111111] font-semibold underline decoration-[#4a4742] hover:decoration-[#111111] transition-colors"
-                title={`Verify source: ${cite.sourceName}`}
+                title={`Verify source: ${citation.sourceName}`}
               >
-                {cite.sourceName} ↗
+                {citation.sourceName} ↗
               </a>
             ))}
 
@@ -357,7 +358,7 @@ export function StoryCard({
               href={primaryUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center px-1.5 py-0.5 border border-[#111111] bg-[#efeae0] text-[#111111] hover:bg-[#111111] hover:text-[#f9f6ef] font-bold transition-colors"
+              className="no-print inline-flex items-center px-1.5 py-0.5 border border-[#111111] bg-[#efeae0] text-[#111111] hover:bg-[#111111] hover:text-[#f9f6ef] font-bold transition-colors"
               title="Open original publisher article in a new tab"
             >
               [ Read Original Article ↗ ]
@@ -368,7 +369,7 @@ export function StoryCard({
         {/* Reported Facts Body Text (Justified Serif with Classic Drop-Cap) */}
         <div
           className={`font-serif text-[#111111] text-[15px] leading-[1.55] text-justify my-3 ${
-            useMultiColBody ? "md:columns-2 gap-6" : ""
+            useMultiColBody ? "md:columns-2 gap-6 print-cols-2" : ""
           }`}
         >
           <p className="drop-cap">{story.reportedFacts}</p>
@@ -386,7 +387,14 @@ export function StoryCard({
             <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[#c8c2b6] pt-1 border-t border-[#c8c2b6] text-[12px]">
               <div className="pb-2 sm:pb-0 sm:pr-3">
                 <div className="font-mono font-bold text-[#111111] uppercase tracking-wider text-[10px] mb-0.5">
-                  {story.framingDivergence.sourceA.name.toUpperCase()}:
+                  <a
+                    href={story.framingDivergence.sourceA.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-[#4a4742]"
+                  >
+                    {story.framingDivergence.sourceA.name.toUpperCase()} ↗:
+                  </a>
                 </div>
                 <p className="text-[#111111] leading-snug text-justify">
                   {story.framingDivergence.sourceA.framing}
@@ -394,7 +402,14 @@ export function StoryCard({
               </div>
               <div className="pt-2 sm:pt-0 sm:pl-3">
                 <div className="font-mono font-bold text-[#111111] uppercase tracking-wider text-[10px] mb-0.5">
-                  {story.framingDivergence.sourceB.name.toUpperCase()}:
+                  <a
+                    href={story.framingDivergence.sourceB.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline hover:text-[#4a4742]"
+                  >
+                    {story.framingDivergence.sourceB.name.toUpperCase()} ↗:
+                  </a>
                 </div>
                 <p className="text-[#111111] leading-snug text-justify">
                   {story.framingDivergence.sourceB.framing}
