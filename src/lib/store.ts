@@ -1,17 +1,24 @@
 /**
- * SUBH BAKHABAR — Local JSON Persistence Layer (server-only)
+ * SUBH BAKHABAR — Local JSON Persistence Layer & Resilient In-Memory Fallback
  *
- * Reads/writes `/data/subh-db.json`. If the file does not exist (or is
- * unreadable/corrupt), it is bootstrapped from `src/data/seed.ts`.
+ * Reads/writes `/data/subh-db.json`. In serverless environments like Vercel
+ * where the filesystem outside `/tmp` is read-only (EROFS) or `data/` is omitted,
+ * it seamlessly and gracefully falls back to an in-memory store initialized
+ * with SEED_PROFILE and SEED_EDITIONS / SEED_EDITION from `src/data/seed.ts`.
  *
- * Only import this from Route Handlers, Server Components or Server Actions —
- * it depends on Node's `fs` module.
+ * Guaranteed to never throw unhandled filesystem errors during SSR or page rendering.
  */
 
-import { promises as fs } from "node:fs";
+import fs, { promises as fsPromises } from "node:fs";
 import path from "node:path";
 
-import { defaultUserProfile, seededEditions } from "../data/seed";
+import {
+  defaultUserProfile,
+  seededEditions,
+  SEED_PROFILE,
+  SEED_EDITION,
+  SEED_EDITIONS,
+} from "../data/seed";
 import type {
   CandidateArticle,
   Edition,
@@ -33,18 +40,35 @@ const DB_PATH = path.join(DATA_DIR, "subh-db.json");
 const MAX_ARTICLES = 500;
 
 /* -------------------------------------------------------------------------- */
-/*                               Core read/write                              */
+/*                               In-Memory Store                              */
 /* -------------------------------------------------------------------------- */
 
 function buildSeedDatabase(): SubhDatabase {
+  const profile = SEED_PROFILE ?? defaultUserProfile;
+  const editions =
+    SEED_EDITIONS ?? seededEditions ?? (SEED_EDITION ? [SEED_EDITION] : []);
+
   // structuredClone so mutations never leak back into the seed module.
   return structuredClone({
     schemaVersion: SCHEMA_VERSION,
-    activeProfileId: defaultUserProfile.id,
-    profiles: [defaultUserProfile],
+    activeProfileId: profile.id,
+    profiles: [profile],
     articles: [],
-    editions: seededEditions,
+    editions,
   });
+}
+
+/**
+ * In-memory fallback database used whenever the filesystem is read-only
+ * (e.g. Vercel serverless functions) or file access fails.
+ */
+let memoryDb: SubhDatabase | null = null;
+
+function getMemoryDb(): SubhDatabase {
+  if (!memoryDb) {
+    memoryDb = buildSeedDatabase();
+  }
+  return memoryDb;
 }
 
 function isDatabase(value: unknown): value is SubhDatabase {
@@ -58,16 +82,24 @@ function isDatabase(value: unknown): value is SubhDatabase {
   );
 }
 
-function isNotFound(err: unknown): boolean {
-  return typeof err === "object" && err !== null && (err as NodeJS.ErrnoException).code === "ENOENT";
-}
-
-/** Atomic write: write to a temp file, then rename over the target. */
+/**
+ * Atomic write: write to a temp file, then rename over the target.
+ * In read-only or serverless environments (EROFS), safely updates in-memory store.
+ */
 async function writeFileAtomic(db: SubhDatabase): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  const tmp = `${DB_PATH}.${process.pid}.${Date.now()}.tmp`;
-  await fs.writeFile(tmp, JSON.stringify(db, null, 2), "utf8");
-  await fs.rename(tmp, DB_PATH);
+  memoryDb = structuredClone(db);
+  try {
+    await fsPromises.mkdir(DATA_DIR, { recursive: true });
+    const tmp = `${DB_PATH}.${process.pid}.${Date.now()}.tmp`;
+    await fsPromises.writeFile(tmp, JSON.stringify(db, null, 2), "utf8");
+    await fsPromises.rename(tmp, DB_PATH);
+  } catch (err) {
+    // EROFS / permission / missing parent in read-only serverless environment
+    console.warn(
+      "[store] Filesystem write bypassed (operating in read-only/serverless environment):",
+      err instanceof Error ? err.message : err
+    );
+  }
 }
 
 /**
@@ -82,30 +114,113 @@ function enqueue<T>(task: () => Promise<T>): Promise<T> {
   return run;
 }
 
-/** Reads the database, bootstrapping it from seed data if missing or corrupt. */
+/**
+ * Reads the database from disk, bootstrapping it from seed data if missing or corrupt.
+ * In read-only environments (Vercel), falls back to in-memory seed store without throwing.
+ */
 export async function readDb(): Promise<SubhDatabase> {
   try {
-    const raw = await fs.readFile(DB_PATH, "utf8");
-    const parsed: unknown = JSON.parse(raw);
-    if (isDatabase(parsed)) {
-      const seedByDate = new Map(seededEditions.map((e) => [e.date, e]));
-      parsed.editions = parsed.editions.map((ed) => {
-        if (ed.origin === "seed" && seedByDate.has(ed.date)) {
-          return structuredClone(seedByDate.get(ed.date)!);
-        }
-        return ed;
-      });
-      return parsed;
+    let exists = false;
+    try {
+      exists = fs.existsSync(DB_PATH);
+    } catch {
+      exists = false;
     }
-    console.warn("[store] subh-db.json has an invalid shape — re-seeding.");
+
+    if (exists) {
+      const raw = await fsPromises.readFile(DB_PATH, "utf8");
+      const parsed: unknown = JSON.parse(raw);
+      if (isDatabase(parsed)) {
+        const seedList = SEED_EDITIONS ?? seededEditions;
+        const seedByDate = new Map(seedList.map((e) => [e.date, e]));
+        parsed.editions = parsed.editions.map((ed) => {
+          if (ed.origin === "seed" && seedByDate.has(ed.date)) {
+            return structuredClone(seedByDate.get(ed.date)!);
+          }
+          return ed;
+        });
+        memoryDb = parsed;
+        return parsed;
+      }
+      console.warn("[store] subh-db.json has an invalid shape — falling back to seed.");
+    }
   } catch (err) {
-    if (!isNotFound(err)) {
-      console.warn("[store] Failed to read subh-db.json — re-seeding.", err);
-    }
+    console.warn(
+      "[store] Could not read subh-db.json — falling back to memory/seed:",
+      err instanceof Error ? err.message : err
+    );
   }
+
+  // If memoryDb has in-process state, return it
+  if (memoryDb) {
+    return memoryDb;
+  }
+
   const seeded = buildSeedDatabase();
-  await enqueue(() => writeFileAtomic(seeded));
+  memoryDb = seeded;
+  try {
+    await enqueue(() => writeFileAtomic(seeded));
+  } catch (err) {
+    console.warn("[store] Seed file bootstrap write skipped:", err);
+  }
   return seeded;
+}
+
+/**
+ * Load store helper safe for serverless runtimes.
+ * If reading fails or file is missing, returns the in-memory fallback state containing
+ * SEED_PROFILE and SEED_EDITION without throwing.
+ */
+export async function loadStore(): Promise<SubhDatabase> {
+  return readDb();
+}
+
+/**
+ * Persist store helper safe for serverless runtimes.
+ * Updates in-memory state first, then gracefully swallows any filesystem EROFS error.
+ */
+export async function persistStore(db: SubhDatabase): Promise<void> {
+  return writeDb(db);
+}
+
+/** Synchronous load store helper with complete try/catch wrapping. */
+export function loadStoreSync(): SubhDatabase {
+  if (memoryDb) {
+    return memoryDb;
+  }
+  try {
+    if (fs.existsSync(DB_PATH)) {
+      const raw = fs.readFileSync(DB_PATH, "utf8");
+      const parsed = JSON.parse(raw);
+      if (isDatabase(parsed)) {
+        memoryDb = parsed;
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn(
+      "[store] loadStoreSync read failed, falling back to in-memory seed:",
+      err instanceof Error ? err.message : err
+    );
+  }
+  memoryDb = buildSeedDatabase();
+  return memoryDb;
+}
+
+/** Synchronous persist store helper that catches and swallows EROFS gracefully. */
+export function persistStoreSync(db: SubhDatabase): void {
+  memoryDb = structuredClone(db);
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2), "utf8");
+  } catch (err) {
+    console.warn(
+      "[store] persistStoreSync filesystem write skipped (read-only):",
+      err instanceof Error ? err.message : err
+    );
+  }
 }
 
 /** Overwrites the whole database. Prefer `updateDb` for targeted changes. */
@@ -116,15 +231,34 @@ export async function writeDb(db: SubhDatabase): Promise<void> {
 /**
  * Read-modify-write helper. The mutator may mutate `db` in place and/or return
  * a value, which is passed back to the caller.
+ * Never throws EROFS on read-only systems; persists to memoryDb seamlessly.
  */
-export async function updateDb<T>(mutator: (db: SubhDatabase) => T | Promise<T>): Promise<T> {
-  // Ensure the file exists before entering the queue (readDb may itself enqueue a bootstrap write).
-  await readDb();
+export async function updateDb<T>(
+  mutator: (db: SubhDatabase) => T | Promise<T>
+): Promise<T> {
+  let initialDb: SubhDatabase;
+  try {
+    initialDb = await readDb();
+  } catch {
+    initialDb = getMemoryDb();
+  }
+
   return enqueue(async () => {
-    const raw = await fs.readFile(DB_PATH, "utf8");
-    const db = JSON.parse(raw) as SubhDatabase;
-    const result = await mutator(db);
-    await writeFileAtomic(db);
+    let dbToMutate: SubhDatabase;
+    try {
+      const raw = await fsPromises.readFile(DB_PATH, "utf8");
+      dbToMutate = JSON.parse(raw) as SubhDatabase;
+    } catch {
+      dbToMutate = memoryDb ? structuredClone(memoryDb) : structuredClone(initialDb);
+    }
+
+    const result = await mutator(dbToMutate);
+    memoryDb = structuredClone(dbToMutate);
+    try {
+      await writeFileAtomic(dbToMutate);
+    } catch (writeErr) {
+      console.warn("[store] updateDb write skipped:", writeErr);
+    }
     return result;
   });
 }
@@ -132,7 +266,12 @@ export async function updateDb<T>(mutator: (db: SubhDatabase) => T | Promise<T>)
 /** Restores the database to the seeded state. */
 export async function resetDb(): Promise<SubhDatabase> {
   const seeded = buildSeedDatabase();
-  await writeDb(seeded);
+  memoryDb = structuredClone(seeded);
+  try {
+    await writeDb(seeded);
+  } catch (err) {
+    console.warn("[store] resetDb disk write skipped:", err);
+  }
   return seeded;
 }
 
@@ -141,16 +280,32 @@ export async function resetDb(): Promise<SubhDatabase> {
 /* -------------------------------------------------------------------------- */
 
 function findActiveProfile(db: SubhDatabase): UserProfile {
-  const profile = db.profiles.find((p) => p.id === db.activeProfileId) ?? db.profiles[0];
-  if (!profile) throw new Error("[store] No profiles found in database.");
+  const profile =
+    db.profiles.find((p) => p.id === db.activeProfileId) ?? db.profiles[0];
+  if (!profile) {
+    const fallback = SEED_PROFILE ?? defaultUserProfile;
+    return structuredClone(fallback);
+  }
   if (!profile.editorialTone) {
     profile.editorialTone = "classical";
   }
   return profile;
 }
 
+/**
+ * Returns active user profile, guaranteed to never throw even if
+ * filesystem read fails or file is missing.
+ */
 export async function getActiveProfile(): Promise<UserProfile> {
-  return findActiveProfile(await readDb());
+  const fallback = SEED_PROFILE ?? defaultUserProfile;
+  try {
+    const db = await readDb();
+    const profile = findActiveProfile(db);
+    return profile || structuredClone(fallback);
+  } catch (err) {
+    console.warn("[store] getActiveProfile fallback to SEED_PROFILE:", err);
+    return structuredClone(fallback);
+  }
 }
 
 /**
@@ -177,7 +332,8 @@ export async function saveProfile(profile: UserProfile): Promise<UserProfile> {
  */
 export async function updateActiveProfile(
   mutate: (profile: UserProfile) => UserProfile,
-  logEntry?: Omit<ProfileChangeLog, "id" | "timestamp"> & Partial<Pick<ProfileChangeLog, "id" | "timestamp">>,
+  logEntry?: Omit<ProfileChangeLog, "id" | "timestamp"> &
+    Partial<Pick<ProfileChangeLog, "id" | "timestamp">>
 ): Promise<UserProfile> {
   return updateDb((db) => {
     const current = findActiveProfile(db);
@@ -185,7 +341,8 @@ export async function updateActiveProfile(
     const mutated = mutate(structuredClone(current));
     const next: UserProfile = {
       ...mutated,
-      editorialTone: mutated.editorialTone ?? current.editorialTone ?? "classical",
+      editorialTone:
+        mutated.editorialTone ?? current.editorialTone ?? "classical",
       id: current.id,
       version: current.version + 1,
       updatedAt: now,
@@ -214,11 +371,16 @@ export async function updateUserProfile(
     | Partial<
         Pick<
           UserProfile,
-          "name" | "lifeLenses" | "incubatorGoal" | "trackedStoryIds" | "editorialTone"
+          | "name"
+          | "lifeLenses"
+          | "incubatorGoal"
+          | "trackedStoryIds"
+          | "editorialTone"
         >
       >
     | ((profile: UserProfile) => UserProfile),
-  logEntry?: Omit<ProfileChangeLog, "id" | "timestamp"> & Partial<Pick<ProfileChangeLog, "id" | "timestamp">>,
+  logEntry?: Omit<ProfileChangeLog, "id" | "timestamp"> &
+    Partial<Pick<ProfileChangeLog, "id" | "timestamp">>
 ): Promise<UserProfile> {
   if (typeof patchOrMutate === "function") {
     return updateActiveProfile(patchOrMutate, logEntry);
@@ -227,9 +389,10 @@ export async function updateUserProfile(
     (prev) => ({
       ...prev,
       ...patchOrMutate,
-      editorialTone: patchOrMutate.editorialTone ?? prev.editorialTone ?? "classical",
+      editorialTone:
+        patchOrMutate.editorialTone ?? prev.editorialTone ?? "classical",
     }),
-    logEntry,
+    logEntry
   );
 }
 
@@ -241,32 +404,86 @@ function sortEditionsDesc(editions: Edition[]): Edition[] {
   return [...editions].sort((a, b) => b.date.localeCompare(a.date));
 }
 
-/** All editions, newest first. */
+/** All editions, newest first. Safe against filesystem errors. */
 export async function getEditions(): Promise<Edition[]> {
-  return sortEditionsDesc((await readDb()).editions);
+  try {
+    const db = await readDb();
+    if (Array.isArray(db.editions) && db.editions.length > 0) {
+      return sortEditionsDesc(db.editions);
+    }
+  } catch (err) {
+    console.warn("[store] getEditions fallback to SEED_EDITIONS:", err);
+  }
+  return sortEditionsDesc(structuredClone(SEED_EDITIONS ?? seededEditions));
 }
 
 /** Lightweight list for the archive / edition switcher, newest first. */
 export async function listEditionSummaries(): Promise<EditionSummary[]> {
-  return (await getEditions()).map((e) => ({
-    date: e.date,
-    editionNumber: e.editionNumber,
-    leadHeadline: e.stories[0]?.headline ?? "",
-  }));
+  try {
+    const editions = await getEditions();
+    return editions.map((e) => ({
+      date: e.date,
+      editionNumber: e.editionNumber,
+      leadHeadline: e.stories[0]?.headline ?? "",
+    }));
+  } catch (err) {
+    console.warn("[store] listEditionSummaries fallback:", err);
+    return (SEED_EDITIONS ?? seededEditions).map((e) => ({
+      date: e.date,
+      editionNumber: e.editionNumber,
+      leadHeadline: e.stories[0]?.headline ?? "",
+    }));
+  }
 }
 
 export async function getEdition(date: string): Promise<Edition | null> {
-  return (await readDb()).editions.find((e) => e.date === date) ?? null;
+  try {
+    const editions = await getEditions();
+    const found = editions.find((e) => e.date === date);
+    if (found) return found;
+  } catch (err) {
+    console.warn(`[store] getEdition(${date}) fallback:`, err);
+  }
+  const fallbackList = SEED_EDITIONS ?? seededEditions;
+  const match = fallbackList.find((e) => e.date === date);
+  return match ? structuredClone(match) : null;
 }
 
 export async function getLatestEdition(): Promise<Edition | null> {
-  return (await getEditions())[0] ?? null;
+  const fallback = SEED_EDITION ?? seededEditions[0];
+  try {
+    const editions = await getEditions();
+    if (editions.length > 0 && editions[0]) return editions[0];
+  } catch (err) {
+    console.warn("[store] getLatestEdition fallback:", err);
+  }
+  return fallback ? structuredClone(fallback) : null;
+}
+
+/**
+ * Returns the active edition, guaranteed to never throw or return null
+ * even during SSR or under read-only serverless filesystems.
+ */
+export async function getActiveEdition(): Promise<Edition> {
+  const fallback = SEED_EDITION ?? seededEditions[0];
+  try {
+    const edition = await getLatestEdition();
+    return edition || structuredClone(fallback);
+  } catch (err) {
+    console.warn("[store] getActiveEdition fallback to SEED_EDITION:", err);
+    return structuredClone(fallback);
+  }
 }
 
 /** Next edition number (max existing + 1). */
 export async function getNextEditionNumber(): Promise<number> {
-  const editions = (await readDb()).editions;
-  return editions.reduce((max, e) => Math.max(max, e.editionNumber), 0) + 1;
+  try {
+    const editions = await getEditions();
+    return editions.reduce((max, e) => Math.max(max, e.editionNumber), 0) + 1;
+  } catch (err) {
+    console.warn("[store] getNextEditionNumber fallback:", err);
+    return 43;
+  }
 }
 
 /**
@@ -289,7 +506,12 @@ export async function saveEdition(edition: Edition): Promise<Edition> {
 /* -------------------------------------------------------------------------- */
 
 export async function getCandidateArticles(): Promise<CandidateArticle[]> {
-  return (await readDb()).articles;
+  try {
+    return (await readDb()).articles;
+  } catch (err) {
+    console.warn("[store] getCandidateArticles fallback:", err);
+    return [];
+  }
 }
 
 /**
@@ -300,7 +522,7 @@ export async function getCandidateArticles(): Promise<CandidateArticle[]> {
  */
 export async function saveCandidateArticles(
   articles: CandidateArticle[],
-  mode: "merge" | "replace" = "merge",
+  mode: "merge" | "replace" = "merge"
 ): Promise<CandidateArticle[]> {
   return updateDb((db) => {
     const byLink = new Map<string, CandidateArticle>();
@@ -312,4 +534,3 @@ export async function saveCandidateArticles(
     return db.articles;
   });
 }
-
