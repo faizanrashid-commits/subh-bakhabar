@@ -7,19 +7,26 @@ import { ChevronDown, Check, Sparkles, RefreshCw } from "lucide-react";
 import type { Edition, EditionSummary } from "@/types/subh";
 import { formatEditionDate, toRomanNumeral } from "@/lib/format";
 import { AudioBriefBar } from "./AudioBriefBar";
+import type { PresentationMode } from "./StoryCard";
 
 interface MastheadProps {
   edition: Edition;
   allEditions: EditionSummary[];
+  presentationMode?: PresentationMode;
+  onChangePresentationMode?: (mode: PresentationMode) => void;
   onOpenChiefEditor?: () => void;
   onOpenOnboarding?: () => void;
+  onEditionGenerated?: (newEdition: Edition) => void;
 }
 
 export function Masthead({
   edition,
   allEditions,
+  presentationMode = "broadsheet",
+  onChangePresentationMode,
   onOpenChiefEditor,
   onOpenOnboarding,
+  onEditionGenerated,
 }: MastheadProps) {
   const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -46,7 +53,9 @@ export function Masthead({
   const handleGenerateFresh = async () => {
     if (isGenerating) return;
     setIsGenerating(true);
-    setEditorNotice("Ingesting live RSS feeds and synthesizing fresh 8-story broadsheet...");
+    setEditorNotice(
+      "Ingesting live RSS feeds and synthesizing fresh 8-story broadsheet..."
+    );
     try {
       const res = await fetch("/api/edition/generate", {
         method: "POST",
@@ -58,6 +67,9 @@ export function Masthead({
         setEditorNotice(
           `Issue #${data.edition.editionNumber} generated & grounded in live RSS. Refreshing paper...`
         );
+        if (onEditionGenerated) {
+          onEditionGenerated(data.edition);
+        }
         setTimeout(() => {
           router.refresh();
           router.push(
@@ -65,14 +77,16 @@ export function Masthead({
               ? "/"
               : `/edition/${data.edition.date}`
           );
-        }, 500);
+        }, 400);
       } else {
         setEditorNotice(
           `Generation notice: ${data.error || "Failed to generate edition."}`
         );
       }
     } catch {
-      setEditorNotice("Network issue during edition generation. Please check server.");
+      setEditorNotice(
+        "Network issue during edition generation. Please check server."
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -85,12 +99,43 @@ export function Masthead({
     <header className="w-full pt-3 pb-2 mb-6 select-text text-[#111111]">
       {/* Top Utility & Control Bar (Hidden in Print) */}
       <div className="no-print flex flex-wrap items-center justify-between gap-3 pb-3 mb-3 border-b border-[#c8c2b6] text-xs font-mono text-[#4a4742]">
-        <div className="flex items-center gap-2 uppercase tracking-wider">
+        <div className="flex flex-wrap items-center gap-2 uppercase tracking-wider">
           <span className="font-bold text-[#111111]">
             MORNING BROADSHEET EDITION
           </span>
           <span className="text-[#c8c2b6]">·</span>
-          <span>FINITE 8-STORY PROTOCOL</span>
+          {/* Adaptive Presentation Mode Toggle */}
+          <div
+            className="inline-flex items-center border border-[#111111] bg-[#efeae0]"
+            role="group"
+            aria-label="Adaptive Presentation Mode Toggle"
+          >
+            <button
+              type="button"
+              onClick={() => onChangePresentationMode?.("broadsheet")}
+              className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider cursor-pointer transition-colors ${
+                presentationMode === "broadsheet"
+                  ? "bg-[#111111] text-[#f9f6ef] font-bold"
+                  : "bg-transparent text-[#111111] hover:bg-[#e5dec9]"
+              }`}
+              title="Classic Multi-Column Broadsheet Layout"
+            >
+              [ Broadsheet Layout
+            </button>
+            <span className="text-[#4a4742] px-0.5">|</span>
+            <button
+              type="button"
+              onClick={() => onChangePresentationMode?.("executive")}
+              className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider cursor-pointer transition-colors ${
+                presentationMode === "executive"
+                  ? "bg-[#111111] text-[#f9f6ef] font-bold"
+                  : "bg-transparent text-[#111111] hover:bg-[#e5dec9]"
+              }`}
+              title="High-Density 3-Bullet Executive Briefings with Bold Metric Callouts"
+            >
+              Executive 3-Min Dispatch ]
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -235,7 +280,9 @@ export function Masthead({
           <span className="hidden md:inline-block h-[1px] w-20 bg-[#111111]" />
           <h1
             className="text-4xl sm:text-6xl md:text-7xl font-black tracking-tight text-[#111111] uppercase font-headline leading-none"
-            style={{ fontFamily: "var(--font-playfair), 'Times New Roman', serif" }}
+            style={{
+              fontFamily: "var(--font-playfair), 'Times New Roman', serif",
+            }}
           >
             SUBH BAKHABAR
           </h1>
@@ -273,9 +320,15 @@ export function Masthead({
         </div>
 
         <div className="text-[#4a4742]">
-          <span className="hidden md:inline">PROFILE V{edition.profileVersion}</span>
+          <span className="hidden md:inline">
+            PROFILE V{edition.profileVersion}
+          </span>
           <span className="hidden md:inline mx-2">·</span>
-          <span className="text-[#111111] font-semibold">MORNING FINAL</span>
+          <span className="text-[#111111] font-semibold">
+            {presentationMode === "executive"
+              ? "EXECUTIVE 3-MIN DISPATCH"
+              : "MORNING FINAL"}
+          </span>
         </div>
       </div>
 

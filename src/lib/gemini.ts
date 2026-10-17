@@ -24,7 +24,13 @@ import { pollinationsCartoonUrl } from "@/data/seed";
 import type {
   Edition,
   EditionOrigin,
+  IncubatorCategory,
+  IncubatorGoal,
   IncubatorModule,
+  KnowledgeBaseline,
+  LifeLens,
+  MasteryLevel,
+  ProfileSnapshot,
   QuizQuestion,
   StoryContinuity,
   StoryItem,
@@ -675,3 +681,752 @@ export async function generateEditionPipeline(
 
   return finalEdition;
 }
+
+/* -------------------------------------------------------------------------- */
+/*             Stage 4: Onboarding Persona Mind-Reader (Flash Lite)           */
+/* -------------------------------------------------------------------------- */
+
+export interface OnboardingParseResult {
+  extractedName?: string;
+  lifeLenses: LifeLens[];
+  incubatorGoal: IncubatorGoal;
+  summary: string;
+  origin: "gemini" | "mock";
+}
+
+function deterministicPersonaParse(
+  rawInput: string,
+  currentProfile: UserProfile
+): OnboardingParseResult {
+  const lower = rawInput.toLowerCase();
+  const lenses: LifeLens[] = [];
+
+  // Detect Embedded / Firmware / Automotive / Tech
+  if (
+    lower.includes("embedded") ||
+    lower.includes("firmware") ||
+    lower.includes("rust") ||
+    lower.includes("c++") ||
+    lower.includes("automotive") ||
+    lower.includes("ecu") ||
+    lower.includes("can") ||
+    lower.includes("silicon") ||
+    lower.includes("ai") ||
+    lower.includes("software")
+  ) {
+    lenses.push({
+      id: "lens-embedded-auto",
+      title: "Embedded Systems & Silicon Architecture",
+      description:
+        "Extracted from your technical bio/bookmarks: focus on real-time firmware, RISC-V/ARM toolchains, automotive ECUs, and edge compute.",
+      keywords: [
+        "embedded",
+        "firmware",
+        "rust",
+        "automotive",
+        "ecu",
+        "semiconductor",
+        "risc-v",
+        "can bus",
+      ],
+      weight: 92,
+      knowledgeBaseline:
+        lower.includes("senior") ||
+        lower.includes("architect") ||
+        lower.includes("expert") ||
+        lower.includes("lead")
+          ? "expert"
+          : "intermediate",
+      preferredAngle:
+        "Skip high-level consumer hype; focus on memory safety, silicon supply chains, and deterministic hardware-software trade-offs.",
+    });
+  }
+
+  // Detect Energy / Solar / Inverters / NEPRA / Grid
+  if (
+    lower.includes("solar") ||
+    lower.includes("inverter") ||
+    lower.includes("nepra") ||
+    lower.includes("grid") ||
+    lower.includes("energy") ||
+    lower.includes("battery") ||
+    lower.includes("tariff") ||
+    lower.includes("disco")
+  ) {
+    lenses.push({
+      id: "lens-energy-grid",
+      title: "Distributed Solar, Inverters & Grid Tariffs",
+      description:
+        "Focus on hybrid inverter electronics, LFP battery economics, and NEPRA net-metering / capacity-charge regulations.",
+      keywords: [
+        "solar",
+        "inverter",
+        "nepra",
+        "grid",
+        "net metering",
+        "battery",
+        "tariff",
+        "ipp",
+      ],
+      weight: 88,
+      knowledgeBaseline: "expert",
+      preferredAngle:
+        "Quantify payback horizons, kWh tariff math, grid stability constraints, and power electronics reliability.",
+    });
+  }
+
+  // Detect Macro / Policy / Pakistan / IMF / Geopolitics / CSS
+  if (
+    lower.includes("pakistan") ||
+    lower.includes("imf") ||
+    lower.includes("policy") ||
+    lower.includes("macro") ||
+    lower.includes("economy") ||
+    lower.includes("sbp") ||
+    lower.includes("css") ||
+    lower.includes("foreign") ||
+    lower.includes("trade")
+  ) {
+    lenses.push({
+      id: "lens-macro-policy",
+      title: "Pakistan Macro-Fiscal & Geopolitical Strategy",
+      description:
+        "Structural economic reforms, SBP monetary stance, sovereign debt dynamics, and regional trade corridors.",
+      keywords: [
+        "imf",
+        "sbp",
+        "fiscal",
+        "pakistan",
+        "exports",
+        "tariff",
+        "geopolitics",
+        "corridor",
+      ],
+      weight: 82,
+      knowledgeBaseline: "intermediate",
+      preferredAngle:
+        "Connect sovereign policy announcements directly to industrial input costs, FX liquidity, and institutional governance.",
+    });
+  }
+
+  // Detect Formula 1 / Motorsport / Finance / Bio / Custom topics
+  if (lower.includes("f1") || lower.includes("formula 1") || lower.includes("motorsport")) {
+    lenses.push({
+      id: "lens-motorsport-aero",
+      title: "Formula 1 Engineering & Race Strategy",
+      description:
+        "Powertrain hybrid MGU-K regulations, aero ground-effect physics, telemetry, and undercut/overcut tire strategy.",
+      keywords: ["formula 1", "f1", "aerodynamics", "fia", "telemetry", "powertrain"],
+      weight: 78,
+      knowledgeBaseline: lower.includes("scratch") || lower.includes("beginner") ? "beginner" : "intermediate",
+      preferredAngle:
+        "Break down race outcomes through engineering regulations, tire degradation curves, and constructor upgrades.",
+    });
+  }
+
+  // Ensure at least 3 multidimensional lenses
+  if (lenses.length < 3) {
+    for (const fallbackLens of currentProfile.lifeLenses) {
+      if (!lenses.some((l) => l.id === fallbackLens.id) && lenses.length < 3) {
+        lenses.push(structuredClone(fallbackLens));
+      }
+    }
+  }
+
+  // Determine incubator goal
+  let incubatorGoal: IncubatorGoal = structuredClone(currentProfile.incubatorGoal);
+  if (lower.includes("f1") || lower.includes("formula 1")) {
+    incubatorGoal = {
+      title: "Formula 1 Engineering & Strategy from Scratch",
+      category: "new_domain",
+      masteryLevel: 2,
+      objective:
+        "Master FIA 2026 active aerodynamics, MGU-K energy deployment, and race pit-wall undercut/overcut telemetry.",
+      progressionNotes: [
+        "Level 1: Understand DRS, ground effect venturi tunnels, and tire compounds (C1–C5).",
+        "Level 2: Analyze 2026 50/50 electric-ICE power unit split and active aero X-mode/Z-mode.",
+        "Level 3: Predict race strategy windows from fuel-load-adjusted lap time deltas.",
+      ],
+    };
+  } else if (lower.includes("german") || lower.includes("deutsch") || lower.includes("berlin") || lower.includes("munich")) {
+    incubatorGoal = {
+      title: "Technical & Industrial German (B1 -> B2)",
+      category: "language",
+      masteryLevel: 2,
+      objective:
+        "Read German automotive and industrial engineering dispatches (Handelsblatt / Heise) with B2 technical vocabulary.",
+      progressionNotes: [
+        "Master compound nouns in power electronics and embedded systems.",
+        "Practice passive voice constructions used in German regulatory and engineering standards.",
+        "Build active recall of 150 core industrial & macro-policy terms.",
+      ],
+    };
+  } else if (lower.includes("css") || lower.includes("civil service") || lower.includes("foreign policy")) {
+    incubatorGoal = {
+      title: "CSS Current Affairs & Public Policy Mastery",
+      category: "exam_prep",
+      masteryLevel: 3,
+      objective:
+        "Synthesize daily domestic and geopolitical developments into structured 4-part examiner dossiers (Background, Core Issue, Constitutional/Policy Angle, Way Forward).",
+      progressionNotes: [
+        "Anchor every policy argument in constitutional articles (e.g., 18th Amendment, CCI) or empirical data.",
+        "Contrast domestic Pakistani press framing with international wire coverage.",
+        "Practice concise 250-word executive policy prescriptions.",
+      ],
+    };
+  }
+
+  return {
+    lifeLenses: lenses.slice(0, 4),
+    incubatorGoal,
+    summary: `Synthesized ${lenses.slice(0, 4).length} personalized Life Lenses and calibrated your '${incubatorGoal.title}' incubator track from your input.`,
+    origin: "mock",
+  };
+}
+
+export async function parseOnboardingPersona(
+  rawInput: string,
+  currentProfile: UserProfile
+): Promise<OnboardingParseResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const shouldRunLive =
+    process.env.MOCK_LLM_MODE !== "true" && Boolean(apiKey && apiKey !== "dummy");
+
+  if (!shouldRunLive) {
+    return deterministicPersonaParse(rawInput, currentProfile);
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: apiKey! });
+    const prompt = `You are the Onboarding Mind-Reader for SUBH BAKHABAR, an agentic personalized morning broadsheet.
+Analyze the user's raw bio, ChatGPT memory export, or bookmark URLs below and extract a structured editorial profile.
+
+USER RAW INPUT:
+"""
+${rawInput}
+"""
+
+Return ONLY valid JSON with this exact shape:
+{
+  "extractedName": string (optional),
+  "summary": string (1-2 sentence explanation of how you mapped their persona),
+  "lifeLenses": [
+    // 3 to 4 lenses:
+    {
+      "id": string (kebab-case e.g. "lens-embedded-systems"),
+      "title": string,
+      "description": string,
+      "keywords": string[] (5-8 lowercase keywords),
+      "weight": number (50 to 98),
+      "knowledgeBaseline": "beginner" | "intermediate" | "expert",
+      "preferredAngle": string (specific editorial instruction on depth and angle)
+    }
+  ],
+  "incubatorGoal": {
+    "title": string,
+    "category": "exam_prep" | "new_domain" | "language",
+    "masteryLevel": 1 | 2 | 3 | 4 | 5,
+    "objective": string,
+    "progressionNotes": [string, string, string]
+  }
+}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      },
+    });
+
+    const parsed = JSON.parse(response.text || "{}");
+    const validBaselines: KnowledgeBaseline[] = ["beginner", "intermediate", "expert"];
+    const validCategories: IncubatorCategory[] = ["exam_prep", "new_domain", "language"];
+
+    const lifeLenses: LifeLens[] = Array.isArray(parsed.lifeLenses) && parsed.lifeLenses.length > 0
+      ? parsed.lifeLenses.slice(0, 4).map((l: Partial<LifeLens>, i: number) => ({
+          id: l.id || `lens-custom-${i + 1}`,
+          title: l.title || `Life Lens ${i + 1}`,
+          description: l.description || "Personalized domain lens.",
+          keywords: Array.isArray(l.keywords) && l.keywords.length > 0 ? l.keywords : ["policy", "technology"],
+          weight: typeof l.weight === "number" ? Math.max(0, Math.min(100, Math.round(l.weight))) : 80,
+          knowledgeBaseline: validBaselines.includes(l.knowledgeBaseline as KnowledgeBaseline)
+            ? (l.knowledgeBaseline as KnowledgeBaseline)
+            : "intermediate",
+          preferredAngle: l.preferredAngle || "Focus on structural and operational impact.",
+        }))
+      : deterministicPersonaParse(rawInput, currentProfile).lifeLenses;
+
+    const rawGoal = parsed.incubatorGoal || {};
+    const incubatorGoal: IncubatorGoal = {
+      title: rawGoal.title || currentProfile.incubatorGoal.title,
+      category: validCategories.includes(rawGoal.category)
+        ? rawGoal.category
+        : currentProfile.incubatorGoal.category,
+      masteryLevel: ([1, 2, 3, 4, 5].includes(Number(rawGoal.masteryLevel))
+        ? Number(rawGoal.masteryLevel)
+        : currentProfile.incubatorGoal.masteryLevel) as MasteryLevel,
+      objective: rawGoal.objective || currentProfile.incubatorGoal.objective,
+      progressionNotes:
+        Array.isArray(rawGoal.progressionNotes) && rawGoal.progressionNotes.length > 0
+          ? rawGoal.progressionNotes
+          : currentProfile.incubatorGoal.progressionNotes,
+    };
+
+    return {
+      extractedName: parsed.extractedName,
+      lifeLenses,
+      incubatorGoal,
+      summary:
+        parsed.summary ||
+        `Extracted ${lifeLenses.length} Life Lenses and calibrated your Incubator Goal via Gemini 2.5 Flash Lite.`,
+      origin: "gemini",
+    };
+  } catch (err) {
+    console.warn("[gemini] parseOnboardingPersona fallback:", err);
+    return deterministicPersonaParse(rawInput, currentProfile);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*          Stage 5: Chief Editor Conversational Command (Flash Lite)         */
+/* -------------------------------------------------------------------------- */
+
+export interface ProposedChangeItem {
+  field: string;
+  previousValue: string;
+  newValue: string;
+}
+
+export interface EditorCommandResult {
+  reply: string;
+  summary: string;
+  proposedChanges: ProposedChangeItem[];
+  previousState: ProfileSnapshot;
+  newState: ProfileSnapshot;
+  updatedProfile: UserProfile;
+  origin: "gemini" | "mock";
+}
+
+function deterministicEditorCommand(
+  command: string,
+  profile: UserProfile,
+  highlightedQuote?: string
+): EditorCommandResult {
+  const lower = command.toLowerCase();
+  const nextProfile = structuredClone(profile);
+  const proposedChanges: ProposedChangeItem[] = [];
+
+  const previousState: ProfileSnapshot = {
+    lifeLenses: structuredClone(profile.lifeLenses),
+    incubatorGoal: structuredClone(profile.incubatorGoal),
+    trackedStoryIds: structuredClone(profile.trackedStoryIds),
+  };
+
+  if (lower.includes("css") || lower.includes("foreign policy") || lower.includes("exam")) {
+    const prevGoalTitle = nextProfile.incubatorGoal.title;
+    nextProfile.incubatorGoal = {
+      title: "CSS Current Affairs & Foreign Policy Analysis",
+      category: "exam_prep",
+      masteryLevel: Math.min(5, (nextProfile.incubatorGoal.masteryLevel + 1)) as MasteryLevel,
+      objective:
+        "Deliver rigorous 4-part CSS examination dossiers connecting bilateral diplomacy, constitutional mandates, and fiscal trade-offs.",
+      progressionNotes: [
+        "Emphasize Pakistan's bilateral treaties, CPEC Phase-II, and multilateral IMF/FATF benchmarks.",
+        "Frame every issue with Historical Background, Core Bottleneck, Policy Angle, and Way Forward.",
+        "Include examiner prompts and constitutional lexicon in every edition.",
+      ],
+    };
+    proposedChanges.push({
+      field: "Incubator Goal",
+      previousValue: `${prevGoalTitle} (Level ${profile.incubatorGoal.masteryLevel}/5)`,
+      newValue: `${nextProfile.incubatorGoal.title} (Level ${nextProfile.incubatorGoal.masteryLevel}/5)`,
+    });
+
+    const macroLens =
+      nextProfile.lifeLenses.find(
+        (l) =>
+          l.title.toLowerCase().includes("macro") ||
+          l.title.toLowerCase().includes("policy") ||
+          l.title.toLowerCase().includes("pakistan")
+      ) || nextProfile.lifeLenses[nextProfile.lifeLenses.length - 1];
+
+    if (macroLens) {
+      const oldWeight = macroLens.weight;
+      const oldAngle = macroLens.preferredAngle;
+      macroLens.weight = Math.min(100, oldWeight + 12);
+      macroLens.preferredAngle =
+        "Prioritize foreign policy analysis, constitutional/CCI implications, and diplomatic balance-of-power shifts.";
+      if (!macroLens.keywords.includes("foreign policy")) {
+        macroLens.keywords.push("foreign policy", "diplomacy");
+      }
+      proposedChanges.push({
+        field: `Lens Weight & Angle (${macroLens.title})`,
+        previousValue: `Weight ${oldWeight}% · "${oldAngle.slice(0, 55)}..."`,
+        newValue: `Weight ${macroLens.weight}% · "${macroLens.preferredAngle.slice(0, 55)}..."`,
+      });
+    }
+  } else if (
+    lower.includes("nepra") ||
+    lower.includes("solar") ||
+    lower.includes("inverter") ||
+    lower.includes("tariff") ||
+    lower.includes("hardware")
+  ) {
+    const solarLens =
+      nextProfile.lifeLenses.find(
+        (l) =>
+          l.title.toLowerCase().includes("solar") ||
+          l.title.toLowerCase().includes("energy") ||
+          l.title.toLowerCase().includes("inverter")
+      ) || nextProfile.lifeLenses[0];
+
+    if (solarLens) {
+      const prevWeight = solarLens.weight;
+      const prevBaseline = solarLens.knowledgeBaseline;
+      solarLens.weight = Math.min(100, prevWeight + 10);
+      solarLens.knowledgeBaseline = "expert";
+      solarLens.preferredAngle =
+        "Deep technical & tariff breakdown: NEPRA net-metering revisions, hybrid inverter MPPT/BMS hardware schematics, and LFP cell economics.";
+      proposedChanges.push({
+        field: `Lens Calibration (${solarLens.title})`,
+        previousValue: `Weight ${prevWeight}% · Baseline: ${prevBaseline.toUpperCase()}`,
+        newValue: `Weight ${solarLens.weight}% · Baseline: EXPERT (NEPRA & Inverter Hardware focus)`,
+      });
+    }
+  } else if (
+    lower.includes("f1") ||
+    lower.includes("formula 1") ||
+    lower.includes("simply") ||
+    lower.includes("beginner") ||
+    lower.includes("basic")
+  ) {
+    if (lower.includes("f1") || lower.includes("formula 1")) {
+      const prevTitle = nextProfile.incubatorGoal.title;
+      nextProfile.incubatorGoal = {
+        title: "Formula 1 from Scratch (Beginner-Friendly Primer)",
+        category: "new_domain",
+        masteryLevel: 1,
+        objective:
+          "Explain Formula 1 race strategy, aerodynamics, and power-unit rules using clear everyday analogies and zero unexplained jargon.",
+        progressionNotes: [
+          "Define every motorsport term (undercut, DRS, dirty air, degradation) inline.",
+          "Use intuitive mechanical analogies before diving into telemetry numbers.",
+          "Connect constructor engineering choices to Sunday race outcomes.",
+        ],
+      };
+      proposedChanges.push({
+        field: "Incubator Goal",
+        previousValue: `${prevTitle} (Level ${profile.incubatorGoal.masteryLevel}/5)`,
+        newValue: `${nextProfile.incubatorGoal.title} (Level 1/5 · Beginner Primer)`,
+      });
+    } else {
+      const targetLens = nextProfile.lifeLenses[0];
+      if (targetLens) {
+        const oldBase = targetLens.knowledgeBaseline;
+        targetLens.knowledgeBaseline =
+          lower.includes("simply") || lower.includes("simpler") ? "beginner" : "expert";
+        proposedChanges.push({
+          field: `Knowledge Baseline (${targetLens.title})`,
+          previousValue: oldBase.toUpperCase(),
+          newValue: targetLens.knowledgeBaseline.toUpperCase(),
+        });
+      }
+    }
+  } else if (lower.includes("german") || lower.includes("deutsch")) {
+    const prevTitle = nextProfile.incubatorGoal.title;
+    nextProfile.incubatorGoal = {
+      title: "German via Tech & Automotive News",
+      category: "language",
+      masteryLevel: 2,
+      objective:
+        "Include bilingual German-English technical passages and compound-noun lexicons in every edition.",
+      progressionNotes: [
+        "Focus on automotive engineering and energy transition terminology.",
+        "Pair original German sentences with idiomatic English translations.",
+        "Highlight 3 key technical vocabulary terms per article.",
+      ],
+    };
+    proposedChanges.push({
+      field: "Incubator Goal",
+      previousValue: prevTitle,
+      newValue: nextProfile.incubatorGoal.title,
+    });
+  } else {
+    // General directive or Red-Pencil quote critique
+    const targetLens = nextProfile.lifeLenses[0];
+    if (targetLens) {
+      const prevAngle = targetLens.preferredAngle;
+      const prevWeight = targetLens.weight;
+      const cleanedDirective = command
+        .replace(/^Regarding:\s*["'“].*?["'”]\s*—\s*/i, "")
+        .trim();
+      targetLens.preferredAngle = `${cleanedDirective || command} (Prioritize concrete evidence, primary data, and direct engineering/policy trade-offs).`;
+      targetLens.weight = Math.min(100, prevWeight + 6);
+      proposedChanges.push({
+        field: `Editorial Angle (${targetLens.title})`,
+        previousValue: `"${prevAngle.slice(0, 65)}..." (Weight ${prevWeight}%)`,
+        newValue: `"${targetLens.preferredAngle.slice(0, 65)}..." (Weight ${targetLens.weight}%)`,
+      });
+    }
+  }
+
+  const newState: ProfileSnapshot = {
+    lifeLenses: structuredClone(nextProfile.lifeLenses),
+    incubatorGoal: structuredClone(nextProfile.incubatorGoal),
+    trackedStoryIds: structuredClone(nextProfile.trackedStoryIds),
+  };
+
+  const summary =
+    proposedChanges.map((c) => `${c.field}: ${c.newValue}`).join(" | ") ||
+    `Updated editorial directive: "${command.slice(0, 60)}"`;
+
+  const reply = highlightedQuote
+    ? `Noted your red-pencil critique on "${highlightedQuote.slice(0, 60)}...". I have recalibrated your Persona Brain (${proposedChanges[0]?.field || "Editorial Angle"}) so future dispatches and live story regenerations reflect this exact depth and framing.`
+    : `Understood. I have prepared a schema-validated patch for your Persona Brain (${proposedChanges.map((p) => p.field).join(", ")}). Review the state diff below and click "Apply Change" to commit it to the newsroom ledger, or regenerate any story immediately.`;
+
+  return {
+    reply,
+    summary,
+    proposedChanges,
+    previousState,
+    newState,
+    updatedProfile: nextProfile,
+    origin: "mock",
+  };
+}
+
+export async function processEditorCommand(
+  command: string,
+  profile: UserProfile,
+  highlightedQuote?: string
+): Promise<EditorCommandResult> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const shouldRunLive =
+    process.env.MOCK_LLM_MODE !== "true" && Boolean(apiKey && apiKey !== "dummy");
+
+  if (!shouldRunLive) {
+    return deterministicEditorCommand(command, profile, highlightedQuote);
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: apiKey! });
+    const prompt = `You are the Chief Editor of SUBH BAKHABAR (صبح باخبر).
+The reader is issuing a natural-language directive to recalibrate their UserProfile.
+
+CURRENT USER PROFILE:
+${JSON.stringify(
+  {
+    lifeLenses: profile.lifeLenses,
+    incubatorGoal: profile.incubatorGoal,
+    trackedStoryIds: profile.trackedStoryIds,
+  },
+  null,
+  2
+)}
+
+${highlightedQuote ? `HIGHLIGHTED QUOTE FROM PAPER: "${highlightedQuote}"\n` : ""}
+READER DIRECTIVE: "${command}"
+
+Update the profile's lifeLenses (weights 0-100, knowledgeBaseline: "beginner"|"intermediate"|"expert", preferredAngle, keywords, or add/modify a lens) and/or incubatorGoal (title, category: "exam_prep"|"new_domain"|"language", masteryLevel: 1..5, objective, progressionNotes) to fulfill the reader's instruction.
+
+Respond ONLY with valid JSON matching this schema:
+{
+  "reply": string (Chief Editor's crisp, authoritative 2-sentence acknowledgment),
+  "summary": string (1-line summary for the Change Log),
+  "proposedChanges": [
+    {
+      "field": string,
+      "previousValue": string,
+      "newValue": string
+    }
+  ],
+  "lifeLenses": LifeLens[],
+  "incubatorGoal": IncubatorGoal
+}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.2,
+      },
+    });
+
+    const parsed = JSON.parse(response.text || "{}");
+    const fallback = deterministicEditorCommand(command, profile, highlightedQuote);
+
+    const nextLenses: LifeLens[] =
+      Array.isArray(parsed.lifeLenses) && parsed.lifeLenses.length > 0
+        ? parsed.lifeLenses
+        : fallback.updatedProfile.lifeLenses;
+
+    const nextGoal: IncubatorGoal =
+      parsed.incubatorGoal && parsed.incubatorGoal.title
+        ? parsed.incubatorGoal
+        : fallback.updatedProfile.incubatorGoal;
+
+    const previousState: ProfileSnapshot = {
+      lifeLenses: structuredClone(profile.lifeLenses),
+      incubatorGoal: structuredClone(profile.incubatorGoal),
+      trackedStoryIds: structuredClone(profile.trackedStoryIds),
+    };
+
+    const newState: ProfileSnapshot = {
+      lifeLenses: structuredClone(nextLenses),
+      incubatorGoal: structuredClone(nextGoal),
+      trackedStoryIds: structuredClone(profile.trackedStoryIds),
+    };
+
+    const updatedProfile: UserProfile = {
+      ...structuredClone(profile),
+      lifeLenses: nextLenses,
+      incubatorGoal: nextGoal,
+    };
+
+    return {
+      reply: parsed.reply || fallback.reply,
+      summary: parsed.summary || fallback.summary,
+      proposedChanges:
+        Array.isArray(parsed.proposedChanges) && parsed.proposedChanges.length > 0
+          ? parsed.proposedChanges
+          : fallback.proposedChanges,
+      previousState,
+      newState,
+      updatedProfile,
+      origin: "gemini",
+    };
+  } catch (err) {
+    console.warn("[gemini] processEditorCommand fallback:", err);
+    return deterministicEditorCommand(command, profile, highlightedQuote);
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/*            Stage 5: Single-Story Live Regeneration (Flash Lite)            */
+/* -------------------------------------------------------------------------- */
+
+function deterministicRegenerateStory(
+  story: StoryItem,
+  instruction: string,
+  profile: UserProfile
+): StoryItem {
+  const lower = instruction.toLowerCase();
+  const updated = structuredClone(story);
+
+  const primaryLens = profile.lifeLenses[0];
+  const isSimpler =
+    lower.includes("simpl") ||
+    lower.includes("beginner") ||
+    lower.includes("explain") ||
+    lower.includes("analogy");
+  const isDeeper =
+    lower.includes("technical") ||
+    lower.includes("expert") ||
+    lower.includes("basic") ||
+    lower.includes("hardware") ||
+    lower.includes("nepra") ||
+    lower.includes("depth");
+  const isCss =
+    lower.includes("css") ||
+    lower.includes("policy") ||
+    lower.includes("foreign") ||
+    lower.includes("exam");
+
+  if (isSimpler) {
+    updated.subheadline = `[Simplified Primer] ${story.subheadline}`;
+    updated.reportedFacts = `In plain terms: ${story.reportedFacts} Put simply, think of this shift like upgrading a household circuit breaker before adding heavy appliances—the underlying rules and hardware must adjust first so the broader system stays stable without unexpected price spikes.`;
+    updated.whyYou = `Rewritten per your Chief Editor directive ("${instruction.slice(0, 55)}"): stripped out dense jargon and anchored the dispatch in intuitive first-principles analogies.`;
+    updated.includedBecause = `${story.includedBecause} · Calibrated: Accessible Primer`;
+  } else if (isCss) {
+    updated.subheadline = `[Policy & Governance Brief] ${story.subheadline}`;
+    updated.reportedFacts = `${story.reportedFacts} From a constitutional and fiscal governance perspective, analysts note direct implications for federal-provincial coordination under the Council of Common Interests (CCI), multilateral IMF structural benchmarks, and long-term sovereign industrial competitiveness.`;
+    updated.whyYou = `Rewritten per your Chief Editor directive ("${instruction.slice(0, 55)}"): reframed through a CSS Current Affairs & Public Policy lens linking empirical evidence to institutional reform.`;
+    updated.includedBecause = `${story.includedBecause} · CSS Policy Angle`;
+  } else if (isDeeper) {
+    updated.subheadline = `[Deep Technical & Quantitative Analysis] ${story.subheadline}`;
+    updated.reportedFacts = `${story.reportedFacts} At the engineering and unit-economics layer, this shifts deterministic latency budgets, inverter MPPT/BMS firmware control loops, and levelized tariff amortization schedules by 140–220 bps across Q3–Q4 deployments.`;
+    updated.whyYou = `Rewritten per your Chief Editor directive ("${instruction.slice(0, 55)}"): elevated to Expert baseline (${primaryLens?.title || "Core Systems"}) with concrete unit-economics and architectural specificity.`;
+    updated.includedBecause = `${story.includedBecause} · Calibrated: Expert Depth`;
+  } else {
+    updated.subheadline = `[Editor's Recalibration] ${story.subheadline}`;
+    updated.reportedFacts = `${story.reportedFacts} Following your direct editorial instruction (${instruction}), the newsroom desk has foregrounded the operational trade-offs, primary regulatory filings, and near-term execution catalysts most relevant to your updated Life Lenses.`;
+    updated.whyYou = `Recalibrated live by the Chief Editor for "${instruction.slice(0, 65)}" — aligned with ${primaryLens?.title || "your active persona"} (${primaryLens?.knowledgeBaseline || "expert"} baseline).`;
+    updated.includedBecause = `${story.includedBecause} · Live Recalibrated`;
+  }
+
+  return updated;
+}
+
+export async function regenerateSingleStory(
+  story: StoryItem,
+  instruction: string,
+  profile: UserProfile
+): Promise<{ story: StoryItem; origin: "gemini" | "mock" }> {
+  const apiKey = process.env.GEMINI_API_KEY;
+  const shouldRunLive =
+    process.env.MOCK_LLM_MODE !== "true" && Boolean(apiKey && apiKey !== "dummy");
+
+  if (!shouldRunLive) {
+    return {
+      story: deterministicRegenerateStory(story, instruction, profile),
+      origin: "mock",
+    };
+  }
+
+  try {
+    const ai = new GoogleGenAI({ apiKey: apiKey! });
+    const prompt = `You are the Chief Editor of SUBH BAKHABAR. Rewrite this single newspaper story in place according to the reader's instruction and active profile.
+CRITICAL RULE: Keep the exact same "id", "slotType", and "citations" (NEVER alter or fabricate citation URLs).
+
+CURRENT STORY:
+${JSON.stringify(story, null, 2)}
+
+ACTIVE USER PROFILE LENSES:
+${JSON.stringify(profile.lifeLenses, null, 2)}
+INCUBATOR GOAL:
+${JSON.stringify(profile.incubatorGoal, null, 2)}
+
+READER INSTRUCTION FOR REGENERATION:
+"${instruction}"
+
+Return ONLY valid JSON for the updated StoryItem object (preserving id, slotType, and citations).`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash-lite",
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+      config: {
+        responseMimeType: "application/json",
+        temperature: 0.25,
+      },
+    });
+
+    const parsed = JSON.parse(response.text || "{}");
+    const updatedStory: StoryItem = {
+      ...story,
+      headline: parsed.headline || story.headline,
+      subheadline: parsed.subheadline || story.subheadline,
+      sectionLabel: parsed.sectionLabel || story.sectionLabel,
+      reportedFacts: parsed.reportedFacts || story.reportedFacts,
+      whyYou: parsed.whyYou || story.whyYou,
+      includedBecause: parsed.includedBecause || `${story.includedBecause} · Recalibrated`,
+      whatToWatchNext: parsed.whatToWatchNext || story.whatToWatchNext,
+      // Always preserve original verified citations and ID
+      id: story.id,
+      slotType: story.slotType,
+      citations: story.citations,
+    };
+
+    return { story: updatedStory, origin: "gemini" };
+  } catch (err) {
+    console.warn("[gemini] regenerateSingleStory fallback:", err);
+    return {
+      story: deterministicRegenerateStory(story, instruction, profile),
+      origin: "mock",
+    };
+  }
+}
+
+

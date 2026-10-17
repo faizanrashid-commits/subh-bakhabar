@@ -1,12 +1,23 @@
 "use client";
 
 import React, { useState } from "react";
-import type { StoryItem } from "@/types/subh";
+import type { StoryItem, UserProfile } from "@/types/subh";
+
+export type PresentationMode = "broadsheet" | "executive";
 
 interface StoryCardProps {
   story: StoryItem;
   featured?: boolean;
   twoColumnBody?: boolean;
+  presentationMode?: PresentationMode;
+  onOpenStoryModal?: (story: StoryItem) => void;
+  onSendToEditor?: (story: StoryItem, quote?: string) => void;
+  onHighlightText?: (
+    story: StoryItem,
+    quote: string,
+    coords: { x: number; y: number }
+  ) => void;
+  onProfileMutated?: (profile: UserProfile, summary: string) => void;
 }
 
 function formatSourceByline(sources: string[]): string {
@@ -17,18 +28,132 @@ function formatSourceByline(sources: string[]): string {
   return `BY ${upper.slice(0, -1).join(", ")} & ${upper[upper.length - 1]}`;
 }
 
+/**
+ * Extracts 3 high-density executive briefing bullets with bold metric/key-term callouts
+ * for the Adaptive "Executive 3-Min Dispatch" presentation mode.
+ */
+function buildExecutiveBullets(story: StoryItem): Array<{
+  leadMetric: string;
+  detail: string;
+}> {
+  const sentences = story.reportedFacts
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const bullet1Text = sentences[0] || story.subheadline;
+  const bullet2Text =
+    sentences.slice(1).join(" ") ||
+    `Cross-lens impact (${story.includedBecause}): ${story.whyYou}`;
+  const bullet3Text = `${story.whyYou} Next catalyst: ${story.whatToWatchNext}`;
+
+  return [
+    {
+      leadMetric: `CORE FACT [SCORE ${story.intersectionScore}/100]:`,
+      detail: bullet1Text,
+    },
+    {
+      leadMetric: `OPERATIONAL & LENS IMPACT [${story.includedBecause.toUpperCase()}]:`,
+      detail: bullet2Text,
+    },
+    {
+      leadMetric: "WHY YOU & NEXT CATALYST:",
+      detail: bullet3Text,
+    },
+  ];
+}
+
 export function StoryCard({
   story,
   featured = false,
   twoColumnBody = false,
+  presentationMode = "broadsheet",
+  onOpenStoryModal,
+  onSendToEditor,
+  onHighlightText,
+  onProfileMutated,
 }: StoryCardProps) {
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
   const [isTracked, setIsTracked] = useState<boolean>(false);
+  const [isSkipped, setIsSkipped] = useState<boolean>(false);
+  const [isSendingFeedback, setIsSendingFeedback] = useState<boolean>(false);
 
   const triggerFeedback = (message: string) => {
     setFeedbackNotice(message);
-    setTimeout(() => setFeedbackNotice(null), 3000);
+    setTimeout(() => setFeedbackNotice(null), 3500);
   };
+
+  const sendFeedbackApi = async (
+    action: "more" | "too_basic" | "wrong_angle" | "track" | "skip",
+    undo = false
+  ) => {
+    if (isSendingFeedback) return;
+    setIsSendingFeedback(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storyId: story.id,
+          threadId: story.threadId || story.id,
+          action,
+          sectionLabel: story.sectionLabel,
+          includedBecause: story.includedBecause,
+          undo,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (data.summary) triggerFeedback(data.summary.toUpperCase());
+        if (onProfileMutated && data.profile) {
+          onProfileMutated(data.profile, data.summary);
+        }
+      }
+    } catch {
+      triggerFeedback("LOCAL CALIBRATION RECORDED.");
+    } finally {
+      setIsSendingFeedback(false);
+    }
+  };
+
+  const handleParagraphMouseUp = (e: React.MouseEvent<HTMLElement>) => {
+    if (!onHighlightText || typeof window === "undefined") return;
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim() || "";
+    if (selectedText.length >= 8) {
+      const range = selection?.getRangeAt(0);
+      const rect = range?.getBoundingClientRect();
+      onHighlightText(story, selectedText, {
+        x: rect ? rect.left + rect.width / 2 : e.clientX,
+        y: rect ? rect.top - 10 : e.clientY - 16,
+      });
+    }
+  };
+
+  // Collapsed 1-Line Banner when Skipped
+  if (isSkipped) {
+    return (
+      <div
+        id={story.id}
+        className="no-print py-2 px-3 my-1 bg-[#efeae0] border border-[#111111] text-xs font-mono text-[#111111] flex items-center justify-between gap-2"
+      >
+        <span>
+          Story skipped — reduced priority for{" "}
+          <strong>{story.sectionLabel}</strong>.
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            setIsSkipped(false);
+            sendFeedbackApi("skip", true);
+          }}
+          className="font-bold underline uppercase tracking-wider hover:text-[#4a4742] cursor-pointer"
+        >
+          [Undo]
+        </button>
+      </div>
+    );
+  }
 
   const isLead = story.slotType === "lead_intersection" || featured;
   const isIncubator = story.slotType === "incubator";
@@ -37,27 +162,153 @@ export function StoryCard({
   const bylineText = formatSourceByline(
     story.citations.map((c) => c.sourceName)
   );
+  const primaryUrl = story.citations[0]?.url || "#";
+
+  // Adaptive Presentation Mode: Executive 3-Min Dispatch
+  if (presentationMode === "executive") {
+    const bullets = buildExecutiveBullets(story);
+    return (
+      <article
+        id={story.id}
+        onMouseUp={handleParagraphMouseUp}
+        className="story-card-print group relative flex flex-col justify-between bg-[#efeae0]/40 border border-[#111111] p-4 text-[#111111]"
+      >
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 mb-2 border-b border-[#c8c2b6] text-[10px] font-mono uppercase tracking-wider">
+            <div className="flex items-center gap-1.5">
+              <span className="px-1.5 py-0.5 bg-[#111111] text-[#f9f6ef] font-bold">
+                {story.sectionLabel}
+              </span>
+              <span className="text-[#4a4742]">·</span>
+              <span className="font-bold text-[#111111]">
+                30-SEC EXEC BRIEF
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {story.citations.map((cite, i) => (
+                <a
+                  key={i}
+                  href={cite.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-semibold text-[#111111]"
+                >
+                  {cite.sourceName} ↗
+                </a>
+              ))}
+              <a
+                href={primaryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-[#111111] hover:underline"
+              >
+                [ Read Original Article ↗ ]
+              </a>
+            </div>
+          </div>
+
+          <h2
+            onClick={() => onOpenStoryModal?.(story)}
+            className="font-headline font-bold text-lg sm:text-xl text-[#111111] leading-snug mb-2.5 hover:underline cursor-pointer"
+            style={{
+              fontFamily: "var(--font-playfair), 'Times New Roman', serif",
+            }}
+            title="Click to open full broadsheet reader drawer"
+          >
+            {story.headline}
+          </h2>
+
+          <ul className="space-y-2 text-xs font-serif text-[#111111] leading-relaxed list-none">
+            {bullets.map((b, idx) => (
+              <li key={idx} className="flex items-start gap-2">
+                <span className="font-mono font-bold text-[#111111] shrink-0 mt-0.5">
+                  ▪
+                </span>
+                <span>
+                  <strong className="font-mono text-[10px] uppercase tracking-wider bg-[#e5dec9] px-1 py-0.5 mr-1.5 text-[#111111]">
+                    {b.leadMetric}
+                  </strong>
+                  {b.detail}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Calibration Strip in Executive Mode */}
+        <footer className="no-print mt-3 pt-1.5 border-t border-[#c8c2b6] flex flex-wrap items-center justify-between gap-1 text-[10px] font-mono text-[#4a4742]">
+          <button
+            type="button"
+            onClick={() => onOpenStoryModal?.(story)}
+            className="text-[#111111] font-bold hover:underline cursor-pointer uppercase"
+          >
+            [ Expand Full Reader Drawer → ]
+          </button>
+
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => sendFeedbackApi("more")}
+              className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase cursor-pointer"
+            >
+              [ + More ]
+            </button>
+            <button
+              type="button"
+              onClick={() => sendFeedbackApi("too_basic")}
+              className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase cursor-pointer"
+            >
+              [ Too Basic ]
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsSkipped(true);
+                sendFeedbackApi("skip");
+              }}
+              className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#991b1b] font-semibold uppercase cursor-pointer"
+            >
+              [ ✕ Skip Story ]
+            </button>
+          </div>
+        </footer>
+      </article>
+    );
+  }
 
   return (
     <article
       id={story.id}
+      onMouseUp={handleParagraphMouseUp}
       className="story-card-print group relative flex flex-col justify-between bg-transparent text-[#111111]"
     >
       <div>
         {/* Classic Typographic Dateline & Small-Caps Kicker */}
-        <div className="mb-1.5 text-[11px] font-mono uppercase tracking-wider text-[#4a4742] leading-snug">
-          <span className="font-bold text-[#111111]">
-            {story.sectionLabel.toUpperCase()}
-          </span>
-          <span className="mx-1.5">·</span>
-          <span>{bylineText}</span>
-          <span className="mx-1.5">·</span>
-          <span>{story.readTimeMinutes} MIN READ</span>
+        <div className="mb-1.5 text-[11px] font-mono uppercase tracking-wider text-[#4a4742] leading-snug flex flex-wrap items-center justify-between gap-1">
+          <div>
+            <span className="font-bold text-[#111111]">
+              {story.sectionLabel.toUpperCase()}
+            </span>
+            <span className="mx-1.5">·</span>
+            <span>{bylineText}</span>
+            <span className="mx-1.5">·</span>
+            <span>{story.readTimeMinutes} MIN READ</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onOpenStoryModal?.(story)}
+            className="no-print text-[10px] font-mono uppercase underline text-[#4a4742] hover:text-[#111111] cursor-pointer"
+          >
+            [ Reader View ]
+          </button>
         </div>
 
-        {/* Headline */}
+        {/* Clickable Headline -> Opens StoryModal.tsx */}
         <h2
-          className={`font-headline font-bold text-[#111111] leading-[1.08] tracking-tight mb-2 ${
+          onClick={() => onOpenStoryModal?.(story)}
+          className={`font-headline font-bold text-[#111111] leading-[1.08] tracking-tight mb-2 hover:underline decoration-1 underline-offset-4 cursor-pointer transition-colors ${
             featured
               ? "text-3xl sm:text-4xl md:text-[38px]"
               : isIncubator
@@ -69,6 +320,7 @@ export function StoryCard({
           style={{
             fontFamily: "var(--font-playfair), 'Times New Roman', serif",
           }}
+          title="Click to inspect full extracted dispatch & provenance in Reader Drawer"
         >
           {story.headline}
         </h2>
@@ -78,8 +330,8 @@ export function StoryCard({
           {story.subheadline}
         </p>
 
-        {/* Byline & Provenance Hairline Strip */}
-        <div className="border-y border-[#c8c2b6] py-1 my-2.5 text-[11px] font-mono uppercase tracking-wider text-[#4a4742] flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        {/* Byline, Provenance & Prominent [ Read Original Article ↗ ] Link */}
+        <div className="border-y border-[#c8c2b6] py-1.5 my-2.5 text-[11px] font-mono uppercase tracking-wider text-[#4a4742] flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
           <div>
             <span className="font-bold text-[#111111]">
               {story.provenanceBadge}
@@ -100,6 +352,16 @@ export function StoryCard({
                 {cite.sourceName} ↗
               </a>
             ))}
+
+            <a
+              href={primaryUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center px-1.5 py-0.5 border border-[#111111] bg-[#efeae0] text-[#111111] hover:bg-[#111111] hover:text-[#f9f6ef] font-bold transition-colors"
+              title="Open original publisher article in a new tab"
+            >
+              [ Read Original Article ↗ ]
+            </a>
           </div>
         </div>
 
@@ -146,7 +408,8 @@ export function StoryCard({
         {story.continuity && (
           <div className="border-y-2 border-[#111111] py-2.5 my-3.5 bg-transparent text-xs font-serif">
             <div className="font-mono uppercase tracking-widest text-[10px] font-bold text-[#111111] pb-1.5 mb-2 border-b border-[#c8c2b6]">
-              CONTINUITY LEDGER · WHAT CHANGED SINCE {story.continuity.previousDate}
+              CONTINUITY LEDGER · WHAT CHANGED SINCE{" "}
+              {story.continuity.previousDate}
             </div>
             <div className="space-y-1.5 text-[#111111] leading-snug">
               <div>
@@ -177,7 +440,7 @@ export function StoryCard({
           </div>
         )}
 
-        {/* Incubator Module: Economist-Style Special Briefing in Clean Monochrome Ink Columns */}
+        {/* Incubator Module: Economist-Style Special Briefing */}
         {story.incubatorModule &&
           story.incubatorModule.kind === "css_brief" && (
             <div className="border-y-2 border-[#111111] py-3.5 my-4 bg-transparent font-serif">
@@ -264,7 +527,8 @@ export function StoryCard({
           story.incubatorModule.kind === "domain_primer" && (
             <div className="border-y-2 border-[#111111] py-3 my-3.5 bg-transparent font-serif text-xs">
               <div className="font-mono uppercase tracking-widest text-[10px] font-bold text-[#111111] pb-1.5 mb-2 border-b border-[#c8c2b6]">
-                SPECIAL BRIEFING · DOMAIN PRIMER: {story.incubatorModule.concept}
+                SPECIAL BRIEFING · DOMAIN PRIMER:{" "}
+                {story.incubatorModule.concept}
               </div>
               <p className="text-[#111111] leading-relaxed mb-2 text-justify">
                 {story.incubatorModule.explanation}
@@ -282,7 +546,8 @@ export function StoryCard({
           story.incubatorModule.kind === "bilingual_passage" && (
             <div className="border-y-2 border-[#111111] py-3 my-3.5 bg-transparent font-serif text-xs">
               <div className="font-mono uppercase tracking-widest text-[10px] font-bold text-[#111111] pb-1.5 mb-2 border-b border-[#c8c2b6]">
-                BILINGUAL READING DISPATCH · {story.incubatorModule.language.toUpperCase()}
+                BILINGUAL READING DISPATCH ·{" "}
+                {story.incubatorModule.language.toUpperCase()}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[#c8c2b6]">
                 <p className="pb-2 sm:pb-0 sm:pr-3 text-[#111111] font-medium leading-relaxed">
@@ -315,61 +580,54 @@ export function StoryCard({
       {/* Inline Feedback Toast */}
       {feedbackNotice && (
         <div className="no-print mt-2 py-1 px-2 bg-[#111111] text-[#f9f6ef] text-[10px] font-mono uppercase tracking-wider">
-          {feedbackNotice}
+          ■ {feedbackNotice}
         </div>
       )}
 
-      {/* Editorial Calibration Controls: Hidden by default, revealed subtly on story hover */}
-      <footer className="no-print mt-2 pt-1.5 border-t border-[#c8c2b6] flex flex-wrap items-center justify-between gap-1 text-[10px] font-mono text-[#4a4742] opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+      {/* Editorial Calibration Controls: Revealed on hover/focus */}
+      <footer className="no-print mt-2 pt-1.5 border-t border-[#c8c2b6] flex flex-wrap items-center justify-between gap-1 text-[10px] font-mono text-[#4a4742] opacity-80 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
         <span className="uppercase tracking-widest text-[9px]">
           CALIBRATE:
         </span>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1">
           <button
-            onClick={() =>
-              triggerFeedback(
-                "NOTED: FUTURE EDITIONS WILL WEIGHT THIS TOPIC HIGHER."
-              )
-            }
+            type="button"
+            onClick={() => sendFeedbackApi("more")}
             className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase tracking-wider cursor-pointer transition-colors"
-            title="More like this"
+            title="More like this (+8% Lens Weight)"
           >
             [ + More ]
           </button>
 
           <button
-            onClick={() =>
-              triggerFeedback(
-                "CALIBRATED: KNOWLEDGE BASELINE ELEVATED FOR THIS LENS."
-              )
-            }
+            type="button"
+            onClick={() => sendFeedbackApi("too_basic")}
             className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase tracking-wider cursor-pointer transition-colors"
-            title="I already know this — raise technical depth"
+            title="I already know this — raise technical depth baseline"
           >
             [ Too Basic ]
           </button>
 
           <button
-            onClick={() =>
-              triggerFeedback(
-                "ANGLE FLAGGED: SEND CRITIQUE TO CHIEF EDITOR DESK."
-              )
-            }
+            type="button"
+            onClick={() => {
+              sendFeedbackApi("wrong_angle");
+              if (onSendToEditor) {
+                onSendToEditor(story);
+              }
+            }}
             className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase tracking-wider cursor-pointer transition-colors"
-            title="Wrong editorial angle for my persona"
+            title="Wrong editorial angle — open Chief Editor Desk"
           >
             [ Wrong Angle ]
           </button>
 
           <button
+            type="button"
             onClick={() => {
               setIsTracked(!isTracked);
-              triggerFeedback(
-                !isTracked
-                  ? "THREAD PINNED FOR TOMORROW'S CONTINUITY LEDGER."
-                  : "STORY THREAD UNPINNED."
-              );
+              sendFeedbackApi("track");
             }}
             className={`px-1.5 py-0.5 border uppercase tracking-wider cursor-pointer transition-colors ${
               isTracked
@@ -379,6 +637,18 @@ export function StoryCard({
             title="Track this evolving thread in future morning editions"
           >
             {isTracked ? "[ ■ Tracked ]" : "[ Track ]"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setIsSkipped(true);
+              sendFeedbackApi("skip", false);
+            }}
+            className="px-1.5 py-0.5 border border-transparent hover:border-[#991b1b] text-[#991b1b] font-semibold uppercase tracking-wider cursor-pointer transition-colors"
+            title="Skip story and reduce weight for matching life lenses"
+          >
+            [ ✕ Skip Story ]
           </button>
         </div>
       </footer>

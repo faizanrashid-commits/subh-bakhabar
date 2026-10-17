@@ -55,38 +55,38 @@
 
 ## 3. Seven-Stage Vertical Build Checklist
 
-### [ ] Stage 1: Foundation, Repo & Seeded Archive (Target: 30m)
-- [ ] Initialize Next.js + TypeScript + Tailwind repository and push Commit #1 to public GitHub.
-- [ ] Create `/src/types/subh.ts` with complete interfaces.
-- [ ] Create `/src/data/seed.ts` with:
+### [x] Stage 1: Foundation, Repo & Seeded Archive (Target: 30m)
+- [x] Initialize Next.js + TypeScript + Tailwind repository and push Commit #1 to public GitHub.
+- [x] Create `/src/types/subh.ts` with complete interfaces.
+- [x] Create `/src/data/seed.ts` with:
   - Default User Profile (CS/Embedded Systems & German Auto + Solar/Inverters & Pakistan Energy Economics + Macro Policy; Incubator: CSS Current Affairs / German Tech).
   - Two complete, realistic saved editions (`2026-10-16` Yesterday's Edition and `2026-10-17` Today's Edition) so Archive and Continuity work out-of-the-box.
-- [ ] Create `/src/lib/store.ts` for local JSON persistence at `/data/subh-db.json`.
+- [x] Create `/src/lib/store.ts` for local JSON persistence at `/data/subh-db.json`.
 
-### [ ] Stage 2: The Broadsheet Web Reader & True Newspaper PDF (Target: 45m)
-- [ ] Build the classic broadsheet masthead (`SUBH BAKHABAR`, date, edition switcher dropdown, "Download Newspaper PDF" button, Audio Brief player bar).
-- [ ] Render the 8-slot newspaper grid:
+### [x] Stage 2: The Broadsheet Web Reader & True Newspaper PDF (Target: 45m)
+- [x] Build the classic broadsheet masthead (`SUBH BAKHABAR`, date, edition switcher dropdown, "Download Newspaper PDF" button, Audio Brief player bar).
+- [x] Render the 8-slot newspaper grid:
   - **Front Page:** 2 Lead Intersection stories + Front-Page AI Editorial Ink Cartoon.
   - **Inside Columns:** 3 Life-Lens stories + 1 Continuing Story ("What Changed Since Yesterday?" timeline).
   - **Growth & Discovery Section:** 1 Incubator Feature column + 1 "Beyond Your Bubble" story.
   - **Footer:** Interactive "3 Things You Learned Today" retention quiz.
-- [ ] Build the dedicated multi-column `@media print` / printable newspaper view so downloading the PDF produces a genuine multi-column broadsheet document (not a raw webpage screenshot).
+- [x] Build the dedicated multi-column `@media print` / printable newspaper view so downloading the PDF produces a genuine multi-column broadsheet document (not a raw webpage screenshot).
 
-### [ ] Stage 3: Live RSS Ingestion & Deterministic + Gemini Pipeline (Target: 45m)
-- [ ] Build `/api/ingest` using `rss-parser` to fetch real articles from curated feeds (Dawn, Reuters/BBC, Ars Technica, Hacker News, CleanTechnica) with graceful fallback to cached feeds if hackathon Wi-Fi drops.
-- [ ] Build deterministic scoring utility (`scoreCandidateArticles`) implementing the 35/25/20/10/10 heuristic formula.
-- [ ] Build `/api/edition/generate` calling `gemini-2.5-flash` with structured JSON schema to assemble a fresh 8-story edition grounded in real retrieved URLs.
+### [x] Stage 3: Live RSS Ingestion & Deterministic + Gemini Pipeline (Target: 45m)
+- [x] Build `/api/ingest` using `rss-parser` to fetch real articles from curated feeds (Dawn, Reuters/BBC, Ars Technica, Hacker News, CleanTechnica) with graceful fallback to cached feeds if hackathon Wi-Fi drops.
+- [x] Build deterministic scoring utility (`scoreCandidateArticles`) implementing the 35/25/20/10/10 heuristic formula.
+- [x] Build `/api/edition/generate` calling `gemini-2.5-flash` with structured JSON schema to assemble a fresh 8-story edition grounded in real retrieved URLs.
 
-### [ ] Stage 4: "Mind-Reader + Goal Setter" Onboarding (Target: 30m)
-- [ ] Build `/onboarding` drawer/modal:
+### [x] Stage 4: "Mind-Reader + Goal Setter" Onboarding (Target: 30m)
+- [x] Build `/onboarding` drawer/modal:
   - Tab 1: Paste ChatGPT Memory / Bio OR paste 3–5 recent URLs / bookmark snippets.
   - Tab 2: Configure active **Interest Incubator Goal** (CSS Prep, Formula 1 from Scratch, German via Tech News, or custom goal).
-- [ ] Wire `/api/onboarding/parse` (`gemini-2.5-flash-lite`) to generate editable Life Lenses and Knowledge Baselines with explicit user review before saving.
+- [x] Wire `/api/onboarding/parse` (`gemini-2.5-flash-lite`) to generate editable Life Lenses and Knowledge Baselines with explicit user review before saving.
 
-### [ ] Stage 5: The Chief Editor's Desk & Adaptive Learning Loop (Target: 40m)
-- [ ] Add inline per-story editorial controls: `More Like This`, `I Already Know This (Too Basic)`, `Wrong Angle`, `Track Story`, `Skip Section`.
-- [ ] Add **Highlight-to-Critique ("Red Pencil")**: Selecting any text pops up a floating button that sends the quote to the Chief Editor.
-- [ ] Build the **Chief Editor Command Bar** + **Live Persona Brain Drawer**:
+### [x] Stage 5: The Chief Editor's Desk & Adaptive Learning Loop (Target: 40m)
+- [x] Add inline per-story editorial controls: `More Like This`, `I Already Know This (Too Basic)`, `Wrong Angle`, `Track Story`, `Skip Section`.
+- [x] Add **Highlight-to-Critique ("Red Pencil")**: Selecting any text pops up a floating button that sends the quote to the Chief Editor.
+- [x] Build the **Chief Editor Command Bar** + **Live Persona Brain Drawer**:
   - Natural language command -> schema-validated profile patch -> visible change log with **Undo** button.
   - **Instant Single-Story Regeneration** (`/api/story/regenerate`) so judges see an article adapt its depth/angle in 2 seconds.
 
