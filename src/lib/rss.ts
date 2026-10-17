@@ -89,9 +89,17 @@ const FEED_TIMEOUT_MS = 6000;
 /*                               String Helpers                               */
 /* -------------------------------------------------------------------------- */
 
+const INAPPROPRIATE_CONTENT_REGEX =
+  /\b(csam|porn|sex|nsfw|nude|pedophil|rape|explicit|cockroach)\b/i;
+
+export function isInappropriateRssContent(text?: string): boolean {
+  if (!text) return false;
+  return INAPPROPRIATE_CONTENT_REGEX.test(text);
+}
+
 /**
  * Strip raw Hacker News feed boilerplate ("Article URL: …", "Comments URL: …",
- * "Points: N # Comments: M") from summary/body text.
+ * "Points: N # Comments: M") and WordPress "[continued]" artifacts from summary/body text.
  */
 export function stripFeedMetadata(raw?: string): string {
   if (!raw) return "";
@@ -99,6 +107,9 @@ export function stripFeedMetadata(raw?: string): string {
     .replace(/Article URL:\s*https?:\/\/\S+/gi, "")
     .replace(/Comments URL:\s*https?:\/\/\S+/gi, "")
     .replace(/Points:\s*\d+\s*#\s*Comments:\s*\d+/gi, "")
+    .replace(/Points:\s*\d+[^.]*(\.\.\.|…)?/gi, "")
+    .replace(/\[continued\][\s\S]*?(?=According to|$)/gi, "")
+    .replace(/\[…\]|\[\.\.\.\]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -209,10 +220,14 @@ async function fetchSingleFeed(
     if (!rawLink || !item.title) continue;
 
     const link = normalizeUrl(rawLink);
-    const title = item.title.trim();
+    const title = stripFeedMetadata(item.title);
     const snippet = cleanSnippet(
       item.contentSnippet || item.summary || item.content || item["content:encoded"] || ""
     );
+
+    if (isInappropriateRssContent(title) || isInappropriateRssContent(snippet)) {
+      continue;
+    }
 
     let publishedAt = fetchedAt;
     if (item.isoDate) {
@@ -253,18 +268,30 @@ export function deduplicateArticles(
 
   for (const art of articles) {
     if (!art.link || !art.title) continue;
+    if (
+      isInappropriateRssContent(art.title) ||
+      isInappropriateRssContent(art.snippet)
+    ) {
+      continue;
+    }
+
+    const cleanedArt: CandidateArticle = {
+      ...art,
+      title: stripFeedMetadata(art.title),
+      snippet: stripFeedMetadata(art.snippet),
+    };
 
     // Check exact URL
-    if (urlMap.has(art.link)) continue;
+    if (urlMap.has(cleanedArt.link)) continue;
 
     // Check title similarity against already accepted items
     const isDuplicateTitle = results.some(
-      (existing) => titleSimilarity(existing.title, art.title) > 0.8
+      (existing) => titleSimilarity(existing.title, cleanedArt.title) > 0.8
     );
     if (isDuplicateTitle) continue;
 
-    urlMap.set(art.link, art);
-    results.push(art);
+    urlMap.set(cleanedArt.link, cleanedArt);
+    results.push(cleanedArt);
   }
 
   return results;

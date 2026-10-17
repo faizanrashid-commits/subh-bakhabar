@@ -35,12 +35,14 @@ interface StoryCardProps {
  * Display sanitizer: strips raw Hacker News feed metadata ("Article URL: …",
  * "Comments URL: …", "Points: N # Comments: M") from subheadline/body text.
  */
-function sanitizeFeedText(raw?: string): string {
+function sanitizeFeedText(raw: any): string {
   if (!raw) return "";
-  return raw
+  const text = Array.isArray(raw) ? raw.join(" ") : typeof raw === "string" ? raw : String(raw);
+  return text
     .replace(/Article URL:\s*https?:\/\/\S+/gi, "")
     .replace(/Comments URL:\s*https?:\/\/\S+/gi, "")
-    .replace(/Points:\s*\d+\s*#\s*Comments:\s*\d+/gi, "")
+    .replace(/Points:\s*\d+[^.]*(\.\.\.|…)?/gi, "")
+    .replace(/\[continued\][\s\S]*?(?=According to|$)/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 }

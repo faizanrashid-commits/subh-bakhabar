@@ -1,12 +1,12 @@
 /**
  * SUBH BAKHABAR — Centralized Gemini Model Router & Schema Generator
  *
- * Coordinates between `@google/genai` (gemini-2.5-flash) and high-fidelity
+ * Coordinates between `@google/genai` (gemini-3.8-flash with auto-discovery) and high-fidelity
  * local deterministic mock synthesis. Grounded strictly in candidate RSS URLs.
  * Respects MOCK_LLM_MODE === 'true' unless forceLive: true is passed.
  */
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, type GenerateContentParameters, type GenerateContentResponse } from "@google/genai";
 import {
   getActiveProfile,
   getCandidateArticles,
@@ -14,7 +14,11 @@ import {
   getNextEditionNumber,
   saveEdition,
 } from "@/lib/store";
-import { fetchAndIngestFeeds } from "@/lib/rss";
+import {
+  fetchAndIngestFeeds,
+  isInappropriateRssContent,
+  stripFeedMetadata,
+} from "@/lib/rss";
 import {
   organizeSlotCandidates,
   scoreCandidateArticles,
@@ -36,6 +40,120 @@ import type {
   StoryItem,
   UserProfile,
 } from "@/types/subh";
+
+/* -------------------------------------------------------------------------- */
+/*                     Resilient Model Router & Auto-Discovery                */
+/* -------------------------------------------------------------------------- */
+
+const CANDIDATE_MODELS = [
+  "gemini-3.8-flash",
+  "gemini-3.8-flash-lite",
+  "gemini-2.5-flash-lite",
+  "gemini-2.0-flash",
+] as const;
+
+const CLEAN_EDITOR_NOTE =
+  "Morning Edition — Synthesized from verified primary dispatches across your active Life Lenses.";
+
+let cachedWorkingModel: string | null = null;
+
+function isNotFoundError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  const status =
+    (err as { status?: number; code?: number })?.status ??
+    (err as { code?: number })?.code;
+  return (
+    status === 404 ||
+    /404|NOT_FOUND|not found|no longer available|is not supported/i.test(msg)
+  );
+}
+
+/**
+ * Resilient wrapper around `ai.models.generateContent` that tries candidate
+ * models in priority order (`gemini-3.8-flash`, `gemini-3.8-flash-lite`,
+ * `gemini-2.5-flash-lite`, `gemini-2.0-flash`) and, if all throw 404 / NOT_FOUND,
+ * dynamically queries `ai.models.list()` to discover and cache the first
+ * enabled `gemini` text generation model for this API key.
+ */
+export async function callGeminiWithAutoModel(
+  ai: GoogleGenAI,
+  params: Omit<GenerateContentParameters, "model"> & { model?: string }
+): Promise<GenerateContentResponse> {
+  const modelsToTry = cachedWorkingModel
+    ? [
+        cachedWorkingModel,
+        ...CANDIDATE_MODELS.filter((m) => m !== cachedWorkingModel),
+      ]
+    : [...CANDIDATE_MODELS];
+
+  let lastError: unknown = null;
+
+  for (const candidateModel of modelsToTry) {
+    try {
+      const response = await ai.models.generateContent({
+        ...params,
+        model: candidateModel,
+      });
+      cachedWorkingModel = candidateModel;
+      return response;
+    } catch (err) {
+      lastError = err;
+      if (isNotFoundError(err)) {
+        console.error(
+          `[gemini] Model '${candidateModel}' returned 404/NOT_FOUND, trying next candidate...`
+        );
+        if (cachedWorkingModel === candidateModel) {
+          cachedWorkingModel = null;
+        }
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  // Dynamic auto-discovery fallback via ai.models.list()
+  try {
+    const list = await ai.models.list();
+    const discoveredModels: string[] = [];
+
+    for await (const m of list) {
+      const rawName = m.name || "";
+      const cleanName = rawName.replace(/^models\//i, "");
+      if (!cleanName) continue;
+
+      const isGemini = /gemini/i.test(cleanName);
+      const isExcluded =
+        /embedding|imagen|veo|tts|audio|aqa|bisheng|learnlm/i.test(cleanName);
+      const actions = (m as { supportedActions?: string[] }).supportedActions;
+      const supportsGenerate =
+        !Array.isArray(actions) ||
+        actions.length === 0 ||
+        actions.includes("generateContent");
+
+      if (isGemini && !isExcluded && supportsGenerate) {
+        discoveredModels.push(cleanName);
+      }
+    }
+
+    const picked =
+      discoveredModels.find(
+        (m) => !modelsToTry.includes(m as (typeof CANDIDATE_MODELS)[number])
+      ) || discoveredModels[0];
+
+    if (picked) {
+      cachedWorkingModel = picked;
+      console.log(`[gemini] Auto-discovered working Gemini model: ${picked}`);
+      return await ai.models.generateContent({
+        ...params,
+        model: cachedWorkingModel,
+      });
+    }
+  } catch (listErr) {
+    console.error("[gemini] Dynamic ai.models.list() discovery failed:", listErr);
+  }
+
+  throw lastError ?? new Error("No available Gemini model found.");
+}
 
 /* -------------------------------------------------------------------------- */
 /*                            Prompt Templates                                */
@@ -179,16 +297,20 @@ function buildSynthesizedStory(
       break;
   }
 
+  const cleanedSnippet = stripFeedMetadata(candidate.snippet || candidate.title);
+
   return {
     id: storyId,
     slotType,
     threadId,
-    headline: candidate.title,
+    headline: stripFeedMetadata(candidate.title),
     subheadline:
-      candidate.snippet.slice(0, 140) + (candidate.snippet.length > 140 ? "..." : ""),
+      cleanedSnippet.slice(0, 140) + (cleanedSnippet.length > 140 ? "..." : ""),
     sectionLabel,
     readTimeMinutes: Math.floor(Math.random() * 2) + 2,
-    reportedFacts: `${candidate.snippet} According to reports confirmed by ${candidate.sourceName}, this development signals a structural inflection point for market participants and regulatory oversight bodies. Independent analysts emphasize that immediate operational impact will be felt across institutional supply chains and capital allocation schedules.`,
+    reportedFacts: stripFeedMetadata(
+      `${cleanedSnippet} According to reports confirmed by ${candidate.sourceName}, this development signals a structural inflection point for market participants and regulatory oversight bodies. Independent analysts emphasize that immediate operational impact will be felt across institutional supply chains and capital allocation schedules.`
+    ),
     citations: [
       {
         sourceName: candidate.sourceName,
@@ -362,8 +484,7 @@ export function buildSynthesizedEdition(
     origin: "mock",
     mastheadQuote:
       "To see clearly is poetry, prophecy, and religion, all in one. — John Ruskin",
-    editorialNote:
-      "Assembled from live RSS ingestion, ranked via 35/25/20/10/10 deterministic scoring, and synthesized under high-fidelity newsroom protocol.",
+    editorialNote: CLEAN_EDITOR_NOTE,
     editorialCartoon: {
       prompt: cartoonPrompt,
       imageUrl: pollinationsCartoonUrl(cartoonPrompt, cartoonSeed),
@@ -462,8 +583,8 @@ Respond with a JSON object with this exact shape:
 
   const ai = new GoogleGenAI({ apiKey });
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+  const response = await callGeminiWithAutoModel(ai, {
+    model: "gemini-3.8-flash",
     contents: [
       { role: "user", parts: [{ text: `${SYSTEM_PROMPT}\n\n${userPrompt}` }] },
     ],
@@ -578,8 +699,9 @@ Respond with a JSON object with this exact shape:
       parsed.mastheadQuote ||
       "To see clearly is poetry, prophecy, and religion, all in one. — John Ruskin",
     editorialNote:
-      parsed.editorialNote ||
-      "Live Gemini 2.5 Flash synthesized edition, strictly grounded in live RSS dispatches.",
+      parsed.editorialNote && !parsed.editorialNote.includes('"error"')
+        ? parsed.editorialNote
+        : CLEAN_EDITOR_NOTE,
     editorialCartoon: {
       prompt: cartoonPrompt,
       imageUrl: pollinationsCartoonUrl(cartoonPrompt, cartoonSeed),
@@ -607,7 +729,7 @@ export interface GenerateEditionOptions {
  * Runs the end-to-end edition generation pipeline:
  * 1. Ensures candidate articles exist (runs RSS ingest if pool is empty).
  * 2. Deterministically scores candidates against user profile and history.
- * 3. Assembles the 8-story Edition (via Gemini 2.5 Flash or high-fidelity synthesizer).
+ * 3. Assembles the 8-story Edition (via Gemini 3.8 Flash or high-fidelity synthesizer).
  * 4. Persists the new Edition to the local store.
  */
 export async function generateEditionPipeline(
@@ -618,7 +740,17 @@ export async function generateEditionPipeline(
     getEditions(),
   ]);
 
-  let candidates = await getCandidateArticles();
+  let candidates = (await getCandidateArticles())
+    .filter(
+      (c) =>
+        !isInappropriateRssContent(c.title) &&
+        !isInappropriateRssContent(c.snippet)
+    )
+    .map((c) => ({
+      ...c,
+      title: stripFeedMetadata(c.title),
+      snippet: stripFeedMetadata(c.snippet),
+    }));
 
   // If candidate pool is dry, ingest immediately
   if (candidates.length < 8) {
@@ -653,8 +785,9 @@ export async function generateEditionPipeline(
         previousEditions
       );
     } catch (err) {
-      console.warn(
-        `[gemini] Live call failed (${err instanceof Error ? err.message : err}) — falling back gracefully to synthesizer.`
+      console.error(
+        "[gemini] Live call failed — falling back gracefully to synthesizer:",
+        err
       );
       finalEdition = buildSynthesizedEdition(
         targetDate,
@@ -663,7 +796,7 @@ export async function generateEditionPipeline(
         scored,
         previousEditions
       );
-      finalEdition.editorialNote = `Synthesized fallback after live model response: ${err instanceof Error ? err.message : "Network/quota issue"}. Zero hallucinations; grounded strictly in verified RSS.`;
+      finalEdition.editorialNote = CLEAN_EDITOR_NOTE;
     }
   } else {
     // Fast mock synthesis (<100ms)
@@ -931,8 +1064,8 @@ Return ONLY valid JSON with this exact shape:
   }
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite",
+    const response = await callGeminiWithAutoModel(ai, {
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -980,11 +1113,11 @@ Return ONLY valid JSON with this exact shape:
       incubatorGoal,
       summary:
         parsed.summary ||
-        `Extracted ${lifeLenses.length} Life Lenses and calibrated your Incubator Goal via Gemini 2.5 Flash Lite.`,
+        `Extracted ${lifeLenses.length} Life Lenses and calibrated your Incubator Goal via Gemini 3.8 Flash.`,
       origin: "gemini",
     };
   } catch (err) {
-    console.warn("[gemini] parseOnboardingPersona fallback:", err);
+    console.error("[gemini] parseOnboardingPersona fallback:", err);
     return deterministicPersonaParse(rawInput, currentProfile);
   }
 }
@@ -1246,8 +1379,8 @@ Respond ONLY with valid JSON matching this schema:
   "incubatorGoal": IncubatorGoal
 }`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite",
+    const response = await callGeminiWithAutoModel(ai, {
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -1299,7 +1432,7 @@ Respond ONLY with valid JSON matching this schema:
       origin: "gemini",
     };
   } catch (err) {
-    console.warn("[gemini] processEditorCommand fallback:", err);
+    console.error("[gemini] processEditorCommand fallback:", err);
     return deterministicEditorCommand(command, profile, highlightedQuote);
   }
 }
@@ -1394,8 +1527,8 @@ READER INSTRUCTION FOR REGENERATION:
 
 Return ONLY valid JSON for the updated StoryItem object (preserving id, slotType, and citations).`;
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash-lite",
+    const response = await callGeminiWithAutoModel(ai, {
+      model: "gemini-3.8-flash",
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
@@ -1421,7 +1554,7 @@ Return ONLY valid JSON for the updated StoryItem object (preserving id, slotType
 
     return { story: updatedStory, origin: "gemini" };
   } catch (err) {
-    console.warn("[gemini] regenerateSingleStory fallback:", err);
+    console.error("[gemini] regenerateSingleStory fallback:", err);
     return {
       story: deterministicRegenerateStory(story, instruction, profile),
       origin: "mock",
