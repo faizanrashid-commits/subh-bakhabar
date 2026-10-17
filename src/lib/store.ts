@@ -11,7 +11,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-import { defaultUserProfile, seededEditions } from "@/data/seed";
+import { defaultUserProfile, seededEditions } from "../data/seed";
 import type {
   CandidateArticle,
   Edition,

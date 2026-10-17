@@ -24,7 +24,7 @@ import {
   scoreCandidateArticles,
   type ScoredCandidateArticle,
 } from "@/lib/scorer";
-import { pollinationsCartoonUrl } from "@/data/seed";
+import { pollinationsCartoonUrl } from "../data/seed";
 import type {
   Edition,
   EditionOrigin,

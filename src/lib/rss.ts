@@ -11,7 +11,7 @@
 
 import Parser from "rss-parser";
 import { saveCandidateArticles, getCandidateArticles } from "@/lib/store";
-import { seededEditions } from "@/data/seed";
+import { seededEditions } from "../data/seed";
 import type { CandidateArticle, FeedCategory } from "@/types/subh";
 
 /* -------------------------------------------------------------------------- */
