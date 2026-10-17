@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f9f6ef;
-  --foreground: #111111;
-  --newsprint-bg: #f9f6ef;
-  --newsprint-tint: #efeae0;
-  --newsprint-ink: #111111;
-  --newsprint-muted: #4a4742;
-  --newsprint-border: #c8c2b6;
+  --background: #FAF7F2;
+  --foreground: #141413;
+  --newsprint-bg: #FAF7F2;
+  --newsprint-tint: #F3EFE6;
+  --newsprint-ink: #141413;
+  --newsprint-muted: #4A463F;
+  --newsprint-border: #DFD9CE;
 }
 
 @theme {
   --font-headline: var(--font-playfair), "Times New Roman", Times, Georgia, serif;
   --font-serif-body: var(--font-source-serif), Georgia, Cambria, "Times New Roman", serif;
   --font-mono: var(--font-jetbrains-mono), "Courier New", monospace;
-  --color-newsprint: #f9f6ef;
-  --color-ink: #111111;
+  --color-newsprint: #FAF7F2;
+  --color-ink: #141413;
 }
 
 body {
@@ -28,27 +28,27 @@ body {
 
 /* Classic Newspaper Rules */
 .newspaper-double-rule {
-  border-bottom: 4px double #111111;
+  border-bottom: 4px double #141413;
 }
 
 .newspaper-double-rule-top {
-  border-top: 4px double #111111;
+  border-top: 4px double #141413;
 }
 
 .newspaper-hairline-b {
-  border-bottom: 1px solid #c8c2b6;
+  border-bottom: 1px solid #DFD9CE;
 }
 
 .newspaper-hairline-t {
-  border-top: 1px solid #c8c2b6;
+  border-top: 1px solid #DFD9CE;
 }
 
 .newspaper-hairline-r {
-  border-right: 1px solid #c8c2b6;
+  border-right: 1px solid #DFD9CE;
 }
 
 .newspaper-hairline-l {
-  border-left: 1px solid #c8c2b6;
+  border-left: 1px solid #DFD9CE;
 }
 
 /* Authentic lithograph print effect for editorial cartoon */
@@ -67,14 +67,14 @@ body {
   margin-right: 0.45rem;
   margin-bottom: -0.05rem;
   font-weight: 700;
-  color: #111111;
+  color: #141413;
 }
 
 /* Newspaper multi-column body text */
 .newspaper-columns-2 {
   column-count: 2;
   column-gap: 1.5rem;
-  column-rule: 1px solid #c8c2b6;
+  column-rule: 1px solid #DFD9CE;
 }
 
 /* ==========================================================================
@@ -213,7 +213,7 @@ body {
   .print-cols-2 {
     column-count: 2 !important;
     column-gap: 1rem !important;
-    column-rule: 1px solid #c8c2b6 !important;
+    column-rule: 1px solid #DFD9CE !important;
   }
 
   /* Clean link appearance in print */
@@ -226,5 +226,108 @@ body {
   * {
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
+  }
+}
+
+/* ==========================================================================
+   Print refinement: compact masthead, continuous 2-column flow, no blank gap.
+   (Appended last so it overrides the earlier print rules.)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0.8cm;
+  }
+
+  html,
+  body {
+    font-size: 9.5pt !important;
+    line-height: 1.35 !important;
+  }
+
+  /* Ultra-compact masthead (py-1 mb-2) */
+  .print-masthead {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  .print-masthead h1 {
+    font-size: 26pt !important;
+    line-height: 1 !important;
+  }
+  .print-masthead > div {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    padding-top: 0.1rem !important;
+    padding-bottom: 0.1rem !important;
+  }
+
+  main.newspaper-container {
+    padding: 0 !important;
+  }
+
+  /* Sections become a single continuous 2-column newsprint flow.
+     Never force breaks on large wrappers. */
+  .print-sheet-1,
+  .print-sheet-2,
+  .print-avoid-break {
+    display: block !important;
+    break-before: auto !important;
+    page-break-before: auto !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin: 0 0 0.4rem 0 !important;
+    padding: 0 !important;
+    column-count: 2 !important;
+    column-gap: 1.1rem !important;
+    column-rule: 1px solid #141413 !important;
+  }
+
+  .print-grid-12,
+  .print-col-8,
+  .print-col-7,
+  .print-col-5,
+  .print-col-4 {
+    display: block !important;
+    width: auto !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .print-compact-mb {
+    margin-bottom: 0.4rem !important;
+    padding-bottom: 0 !important;
+  }
+
+  /* Cards flow naturally across columns/pages */
+  .story-card-print {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+    margin-bottom: 0.45rem !important;
+    padding-top: 0.25rem !important;
+  }
+
+  .story-card-print p,
+  .story-card-print li {
+    font-size: 9.5pt !important;
+    line-height: 1.35 !important;
+    text-align: left !important;
+  }
+
+  .story-card-print h2 {
+    font-size: 13pt !important;
+    line-height: 1.12 !important;
+    margin-bottom: 0.15rem !important;
+  }
+
+  .print-cols-2 {
+    column-count: 1 !important;
+  }
+
+  .newspaper-double-rule-top {
+    border-top-width: 3px !important;
   }
 }

@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getActiveProfile, updateActiveProfile } from "@/lib/store";
+import { getActiveProfile, updateUserProfile } from "@/lib/store";
 import type {
+  EditorialTone,
   IncubatorGoal,
   LifeLens,
   ProfileChangeSource,
   ProfileSnapshot,
 } from "@/types/subh";
+
+const VALID_TONES: EditorialTone[] = ["classical", "socratic", "executive"];
+
+function isValidEditorialTone(val: unknown): val is EditorialTone {
+  return typeof val === "string" && VALID_TONES.includes(val as EditorialTone);
+}
 
 export async function GET() {
   try {
@@ -47,12 +54,14 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const updated = await updateActiveProfile((prev) => ({
+      const updated = await updateUserProfile((prev) => ({
         ...prev,
         name: restoreSnapshot.name ?? prev.name,
         lifeLenses: restoreSnapshot.lifeLenses ?? prev.lifeLenses,
         incubatorGoal: restoreSnapshot.incubatorGoal ?? prev.incubatorGoal,
         trackedStoryIds: restoreSnapshot.trackedStoryIds ?? prev.trackedStoryIds,
+        editorialTone:
+          restoreSnapshot.editorialTone ?? prev.editorialTone ?? "classical",
         changeLog: logEntry
           ? prev.changeLog.filter((c) => c.id !== logEntry.id)
           : prev.changeLog,
@@ -70,6 +79,7 @@ export async function POST(req: NextRequest) {
       lifeLenses: structuredClone(current.lifeLenses),
       incubatorGoal: structuredClone(current.incubatorGoal),
       trackedStoryIds: structuredClone(current.trackedStoryIds),
+      editorialTone: current.editorialTone ?? "classical",
     };
 
     const nextName: string =
@@ -90,27 +100,38 @@ export async function POST(req: NextRequest) {
       ? body.trackedStoryIds
       : current.trackedStoryIds;
 
+    const nextEditorialTone: EditorialTone = isValidEditorialTone(
+      body.editorialTone
+    )
+      ? body.editorialTone
+      : current.editorialTone ?? "classical";
+
     const newState: ProfileSnapshot = {
       name: nextName,
       lifeLenses: structuredClone(nextLenses),
       incubatorGoal: structuredClone(nextIncubatorGoal),
       trackedStoryIds: structuredClone(nextTrackedStoryIds),
+      editorialTone: nextEditorialTone,
     };
 
     const source: ProfileChangeSource =
       body.source === "inline_feedback" ? "inline_feedback" : "chief_editor";
     const summary: string =
       body.summary ||
-      `Saved Editorial Profile (${nextLenses.length} Life Lenses · Incubator: ${nextIncubatorGoal.title})`;
+      (isValidEditorialTone(body.editorialTone) &&
+      !body.lifeLenses &&
+      !body.incubatorGoal
+        ? `Switched Editorial Voice & Tone to ${nextEditorialTone.toUpperCase()}`
+        : `Saved Editorial Profile (${nextLenses.length} Life Lenses · Incubator: ${nextIncubatorGoal.title})`);
 
-    const updated = await updateActiveProfile(
-      (prev) => ({
-        ...prev,
+    const updated = await updateUserProfile(
+      {
         name: nextName,
         lifeLenses: nextLenses,
         incubatorGoal: nextIncubatorGoal,
         trackedStoryIds: nextTrackedStoryIds,
-      }),
+        editorialTone: nextEditorialTone,
+      },
       {
         source,
         summary,

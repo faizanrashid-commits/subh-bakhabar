@@ -166,15 +166,12 @@ export function AudioBriefBar({ script, editionNumber }: AudioBriefBarProps) {
     }
   };
 
-  const formatSpeedLabel = (speed: number) => {
-    if (speed === 1.25) return "[ 1.25x ]";
-    return `[ ${speed.toFixed(1)}x ]`;
-  };
+  const formatSpeedLabel = (speed: number) => `${speed}x`;
 
   return (
     <aside
       aria-label="Morning Wire Audio Dispatch"
-      className="no-print bg-[#efeae0] border-b border-[#111111] py-1.5 px-4 text-xs font-mono uppercase tracking-widest flex flex-wrap items-center justify-between gap-3 text-[#111111]"
+      className="no-print bg-[#efeae0] border-b border-[#141413] py-1.5 px-4 text-xs font-mono uppercase tracking-widest flex flex-wrap items-center justify-between gap-3 text-[#141413]"
     >
       <div className="flex items-center gap-2 min-w-0">
         <span className="font-bold shrink-0">
@@ -190,7 +187,7 @@ export function AudioBriefBar({ script, editionNumber }: AudioBriefBarProps) {
         <button
           type="button"
           onClick={cycleSpeed}
-          className="border border-[#111111] bg-transparent hover:bg-[#111111] hover:text-[#f9f6ef] px-2 py-0.5 text-[10px] font-mono font-bold tracking-wider cursor-pointer transition-colors rounded-none"
+          className="border border-[#DCD6C9] bg-white/80 text-[#141413] hover:bg-[#141413] hover:text-white px-2.5 py-1 rounded-md font-sans text-xs font-medium normal-case tracking-normal cursor-pointer transition-all"
           title="Cycle narration speed (1.0x → 1.25x → 1.5x)"
         >
           {formatSpeedLabel(playbackSpeed)}
@@ -199,7 +196,7 @@ export function AudioBriefBar({ script, editionNumber }: AudioBriefBarProps) {
         <button
           type="button"
           onClick={handlePlayPause}
-          className="bg-[#111111] text-[#f9f6ef] hover:bg-[#4a4742] px-3 py-1 text-[11px] font-mono font-bold uppercase tracking-widest cursor-pointer transition-colors rounded-none"
+          className="bg-[#141413] text-[#FAF7F2] hover:bg-[#2C2A26] px-3 py-1 rounded-md font-sans text-xs font-medium normal-case tracking-normal cursor-pointer transition-all"
           title={
             playbackState === "playing"
               ? "Pause Morning Wire"
@@ -209,20 +206,20 @@ export function AudioBriefBar({ script, editionNumber }: AudioBriefBarProps) {
           }
         >
           {playbackState === "playing"
-            ? "[ ❚❚ PAUSE MORNING WIRE ]"
+            ? "Pause Morning Wire"
             : playbackState === "paused"
-            ? "[ ▶ RESUME MORNING WIRE ]"
-            : "[ ▶ PLAY 90s MORNING WIRE ]"}
+            ? "Resume Morning Wire"
+            : "Play 90s Morning Wire"}
         </button>
 
         {playbackState !== "stopped" && (
           <button
             type="button"
             onClick={handleStop}
-            className="border border-[#111111] bg-transparent hover:bg-[#991b1b] hover:text-[#f9f6ef] hover:border-[#991b1b] px-2 py-1 text-[10px] font-mono font-bold uppercase tracking-wider cursor-pointer transition-colors rounded-none"
+            className="border border-[#DCD6C9] bg-white/80 text-[#141413] hover:bg-[#141413] hover:text-white px-2.5 py-1 rounded-md font-sans text-xs font-medium normal-case tracking-normal cursor-pointer transition-all"
             title="Stop and reset Morning Wire"
           >
-            [ ■ STOP ]
+            Stop
           </button>
         )}
       </div>

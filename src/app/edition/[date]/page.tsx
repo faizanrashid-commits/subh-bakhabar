@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
-import { getEdition, listEditionSummaries } from "@/lib/store";
+import {
+  getActiveProfile,
+  getEdition,
+  listEditionSummaries,
+} from "@/lib/store";
 import { BroadsheetView } from "@/components/newspaper/BroadsheetView";
 
 export const instant = false;
@@ -20,14 +24,21 @@ interface EditionPageProps {
 export default async function EditionPage({ params }: EditionPageProps) {
   const { date } = await params;
 
-  const [edition, allEditions] = await Promise.all([
+  const [edition, allEditions, profile] = await Promise.all([
     getEdition(date),
     listEditionSummaries(),
+    getActiveProfile(),
   ]);
 
   if (!edition) {
     notFound();
   }
 
-  return <BroadsheetView edition={edition} allEditions={allEditions} />;
+  return (
+    <BroadsheetView
+      edition={edition}
+      allEditions={allEditions}
+      initialProfile={profile}
+    />
+  );
 }

@@ -275,7 +275,7 @@ export function OnboardingModal({
       <div className="flex items-start justify-between gap-4 pb-4 mb-5 border-b-2 border-[#111111]">
         <div>
           <div className="text-[11px] font-mono uppercase tracking-widest text-[#4a4742] mb-1">
-            STAGE 4 · ONBOARDING MIND-READER & GOAL SETTER
+            AI EDITORIAL AGENT · LIVE PERSONA ENGINE
           </div>
           <h2
             className="text-2xl sm:text-3xl font-bold text-[#111111]"

@@ -47,9 +47,14 @@ export interface IncubatorGoal {
 
 export type ProfileChangeSource = "chief_editor" | "inline_feedback";
 
+export type EditorialTone = "classical" | "socratic" | "executive";
+
 /** The mutable slice of a profile that a change-log entry can snapshot. */
 export type ProfileSnapshot = Partial<
-  Pick<UserProfile, "name" | "lifeLenses" | "incubatorGoal" | "trackedStoryIds">
+  Pick<
+    UserProfile,
+    "name" | "lifeLenses" | "incubatorGoal" | "trackedStoryIds" | "editorialTone"
+  >
 >;
 
 export interface ProfileChangeLog {
@@ -73,6 +78,8 @@ export interface UserProfile {
   incubatorGoal: IncubatorGoal;
   /** Continuing story threads pinned by the reader (matches `StoryItem.threadId`). */
   trackedStoryIds: string[];
+  /** Reader's preferred editorial narration voice across the paper. Default: 'classical'. */
+  editorialTone: EditorialTone;
   changeLog: ProfileChangeLog[];
 }
 

@@ -1,15 +1,26 @@
 "use client";
 
-import React, { useState } from "react";
-import type { StoryItem, UserProfile } from "@/types/subh";
+import React, { useState, useEffect, useRef } from "react";
+import type { EditorialTone, StoryItem, UserProfile } from "@/types/subh";
+import { ArrowUpRight, Check } from "lucide-react";
 
 export type PresentationMode = "broadsheet" | "executive";
+
+const ACTION_BTN =
+  "inline-flex items-center gap-1 text-[11px] font-sans font-medium text-[#3D3A34] hover:text-[#141413] bg-white/70 hover:bg-white border border-[#DCD6C9] rounded-md px-2.5 py-1 transition-all cursor-pointer";
+const INSIGHT_CARD =
+  "bg-[#F3EFE6] border border-[#DFD9CE] border-l-[3px] border-l-[#141413] rounded-r-md p-3.5 my-3 text-[13px] font-serif text-[#2C2A26] leading-snug";
+const INSIGHT_HEADER =
+  "text-[#141413] font-mono text-[10px] uppercase tracking-wider font-semibold mb-1.5";
 
 interface StoryCardProps {
   story: StoryItem;
   featured?: boolean;
   twoColumnBody?: boolean;
+  priorityIndex?: number;
   presentationMode?: PresentationMode;
+  editorialTone?: EditorialTone;
+  tone?: EditorialTone;
   onOpenStoryModal?: (story: StoryItem) => void;
   onSendToEditor?: (story: StoryItem, quote?: string) => void;
   onHighlightText?: (
@@ -29,8 +40,36 @@ function formatSourceByline(sources: string[]): string {
 }
 
 /**
+ * Builds Socratic counter-questions, trade-offs, and unanswered structural questions
+ * grounded in the story's reported facts, lenses, and continuity/framing metadata.
+ */
+function buildSocraticAnalysis(story: StoryItem): {
+  counterQuestion: string;
+  structuralTradeOff: string;
+  unansweredQuestion: string;
+} {
+  const counterQuestion = story.framingDivergence
+    ? `Does the prevailing framing between ${story.framingDivergence.sourceA.name} and ${story.framingDivergence.sourceB.name} obscure deeper institutional incentives in ${story.includedBecause}?`
+    : `If the baseline premise behind "${story.subheadline}" shifts over the next two quarters, which unstated institutional or technical constraint in ${story.includedBecause} breaks first?`;
+
+  const structuralTradeOff = story.framingDivergence
+    ? `${story.framingDivergence.summary} Meanwhile, optimizing for near-term execution across ${story.includedBecause} forces a direct trade-off between capital allocation efficiency and long-term systemic resilience.`
+    : `${story.whyYou} Pursuing this trajectory entails an inherent trade-off between short-term operational compliance and second-order structural adaptation across ${story.includedBecause}.`;
+
+  const unansweredQuestion = story.continuity?.remainsUncertain
+    ? `${story.continuity.remainsUncertain} Furthermore, what empirical threshold will prove whether "${story.whatToWatchNext}" is a durable structural shift rather than a temporary policy signal?`
+    : `Which verifiable data point or regulatory enforcement mechanism will determine whether "${story.whatToWatchNext}" resolves the underlying bottleneck or merely defers it?`;
+
+  return {
+    counterQuestion,
+    structuralTradeOff,
+    unansweredQuestion,
+  };
+}
+
+/**
  * Extracts 3 high-density executive briefing bullets with bold metric/key-term callouts
- * for the Adaptive "Executive 3-Min Dispatch" presentation mode.
+ * for the Adaptive "Executive 3-Min Dispatch" & "Executive Wire" mode.
  */
 function buildExecutiveBullets(story: StoryItem): Array<{
   leadMetric: string;
@@ -43,36 +82,107 @@ function buildExecutiveBullets(story: StoryItem): Array<{
 
   const bullet1Text = sentences[0] || story.subheadline;
   const bullet2Text =
-    sentences.slice(1).join(" ") ||
+    sentences.slice(1, 3).join(" ") ||
     `Cross-lens impact (${story.includedBecause}): ${story.whyYou}`;
-  const bullet3Text = `${story.whyYou} Next catalyst: ${story.whatToWatchNext}`;
+  const bullet3Text = story.whatToWatchNext;
 
   return [
-    {
-      leadMetric: `CORE FACT [SCORE ${story.intersectionScore}/100]:`,
-      detail: bullet1Text,
-    },
-    {
-      leadMetric: `OPERATIONAL & LENS IMPACT [${story.includedBecause.toUpperCase()}]:`,
-      detail: bullet2Text,
-    },
-    {
-      leadMetric: "WHY YOU & NEXT CATALYST:",
-      detail: bullet3Text,
-    },
+    { leadMetric: "Core Fact", detail: bullet1Text },
+    { leadMetric: "Lens Impact", detail: bullet2Text },
+    { leadMetric: "Next Catalyst", detail: bullet3Text },
   ];
+}
+
+const SCORE_FACTORS: Array<{ label: string; weight: number }> = [
+  { label: "Personal Lens Match", weight: 35 },
+  { label: "Cross-Lens Convergence", weight: 25 },
+  { label: "Structural Significance", weight: 20 },
+  { label: "Source Corroboration & Recency", weight: 10 },
+  { label: "Intellectual Novelty", weight: 10 },
+];
+
+/** Interactive relevance score badge with a "Heuristic Audit" popover. */
+function ScoreBadge({ score }: { score: number }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <span ref={ref} className="no-print relative inline-block normal-case">
+      <button
+        type="button"
+        onClick={() => setOpen((prev) => !prev)}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        title="View heuristic audit of this relevance score"
+        className="px-2 py-0.5 rounded-sm bg-[#141413] text-[#FAF7F2] font-mono font-semibold text-[10px] tracking-wider cursor-pointer hover:bg-[#2C2A26] transition-colors"
+      >
+        Score {score}/100
+      </button>
+      {open && (
+        <div
+          role="dialog"
+          aria-label="Heuristic audit score breakdown"
+          className="absolute right-0 top-full mt-1.5 w-72 bg-[#FAF7F2] border border-[#D5CFC2] shadow-md rounded-lg p-3 text-[11px] font-mono text-[#141413] z-20 text-left"
+        >
+          <div className="font-bold text-[10px] tracking-wider uppercase mb-2 pb-1.5 border-b border-[#D5CFC2]">
+            HEURISTIC AUDIT · DETERMINISTIC 5-FACTOR SCORE
+          </div>
+          <ul className="space-y-1">
+            {SCORE_FACTORS.map((f) => (
+              <li key={f.label} className="flex items-start justify-between gap-2">
+                <span>• {f.label}</span>
+                <span className="font-semibold shrink-0">{f.weight}%</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 pt-1.5 border-t border-[#D5CFC2] text-[10px] text-[#4a4742] leading-snug">
+            Auditable score computed via /lib/scorer.ts against active Life Lenses.
+          </p>
+        </div>
+      )}
+    </span>
+  );
 }
 
 export function StoryCard({
   story,
   featured = false,
   twoColumnBody = false,
+  priorityIndex,
   presentationMode = "broadsheet",
+  editorialTone,
+  tone: toneProp,
   onOpenStoryModal,
   onSendToEditor,
   onHighlightText,
   onProfileMutated,
 }: StoryCardProps) {
+  const tone: EditorialTone =
+    toneProp ??
+    editorialTone ??
+    (presentationMode === "executive" ? "executive" : "classical");
+
+  const isExecutiveView =
+    presentationMode === "executive" || tone === "executive";
+
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
   const [isTracked, setIsTracked] = useState<boolean>(false);
   const [isSkipped, setIsSkipped] = useState<boolean>(false);
@@ -135,7 +245,7 @@ export function StoryCard({
     return (
       <div
         id={story.id}
-        className="no-print py-2 px-3 my-1 bg-[#efeae0] border border-[#111111] text-xs font-mono text-[#111111] flex items-center justify-between gap-2"
+        className="no-print py-2.5 px-3.5 my-2 bg-[#efeae0] border border-[#d5cfc2] rounded-lg text-xs font-sans text-[#141413] flex items-center justify-between gap-2"
       >
         <span>
           Story skipped — reduced priority for{" "}
@@ -147,9 +257,9 @@ export function StoryCard({
             setIsSkipped(false);
             sendFeedbackApi("skip", true);
           }}
-          className="font-bold underline uppercase tracking-wider hover:text-[#4a4742] cursor-pointer"
+          className={ACTION_BTN}
         >
-          [Undo]
+          Undo
         </button>
       </div>
     );
@@ -165,53 +275,143 @@ export function StoryCard({
   const primaryCitation = story.citations[0];
   const primaryUrl = primaryCitation?.url || "#";
 
-  // Adaptive Presentation Mode: Executive 3-Min Dispatch
-  if (presentationMode === "executive") {
+  const formattedPriority =
+    typeof priorityIndex === "number"
+      ? String(priorityIndex + 1).padStart(2, "0")
+      : null;
+
+  const kickerPrefix = isLead
+    ? "FRONT PAGE"
+    : isIncubator
+    ? "SPECIAL BRIEFING"
+    : story.slotType === "continuing"
+    ? "EVOLVING THREAD"
+    : story.slotType === "beyond_bubble"
+    ? "HORIZON"
+    : "";
+  const sectionLabelUpper = story.sectionLabel.toUpperCase();
+  // Deduplicate: never render "FRONT PAGE · FRONT PAGE"
+  const kickerText =
+    kickerPrefix && !sectionLabelUpper.includes(kickerPrefix)
+      ? `${kickerPrefix} · ${sectionLabelUpper}`
+      : sectionLabelUpper;
+
+  // Unified understated action bar
+  const actionBar = (
+    <footer className="no-print border-t border-[#DFD9CE] pt-3 mt-4 flex flex-wrap items-center justify-between gap-2 font-sans">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onOpenStoryModal?.(story)}
+          className={ACTION_BTN}
+          title="Inspect full dispatch in Reader Drawer"
+        >
+          Expand Reader
+        </button>
+        <a
+          href={primaryUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={ACTION_BTN}
+          title="Open original publisher article in a new tab"
+        >
+          Read Original <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
+        </a>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => sendFeedbackApi("more")}
+          className={ACTION_BTN}
+          title="More like this (+8% Lens Weight)"
+        >
+          + More
+        </button>
+        <button
+          type="button"
+          onClick={() => sendFeedbackApi("too_basic")}
+          className={ACTION_BTN}
+          title="I already know this — raise technical depth baseline"
+        >
+          Too Basic
+        </button>
+        {!isExecutiveView && (
+          <>
+            <button
+              type="button"
+              onClick={() => {
+                sendFeedbackApi("wrong_angle");
+                if (onSendToEditor) {
+                  onSendToEditor(story);
+                }
+              }}
+              className={ACTION_BTN}
+              title="Wrong editorial angle — open Chief Editor Desk"
+            >
+              Wrong Angle
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsTracked(!isTracked);
+                sendFeedbackApi("track");
+              }}
+              className={`${ACTION_BTN} ${
+                isTracked ? "!bg-white !text-[#141413] !border-[#141413]" : ""
+              }`}
+              title="Track this evolving thread in future morning editions"
+            >
+              {isTracked ? (
+                <>
+                  Tracked <Check className="w-3 h-3" aria-hidden="true" />
+                </>
+              ) : (
+                "Track"
+              )}
+            </button>
+          </>
+        )}
+        <button
+          type="button"
+          onClick={() => {
+            setIsSkipped(true);
+            sendFeedbackApi("skip", false);
+          }}
+          className={ACTION_BTN}
+          title="Skip story and reduce weight for matching life lenses"
+        >
+          Skip
+        </button>
+      </div>
+    </footer>
+  );
+
+  // Executive Bento Card: meta row, headline, deck, 3-bullet digest, footer
+  if (isExecutiveView) {
     const bullets = buildExecutiveBullets(story);
     return (
       <article
         id={story.id}
         onMouseUp={handleParagraphMouseUp}
-        className="story-card-print group relative flex flex-col justify-between bg-[#efeae0]/40 border border-[#111111] p-4 text-[#111111]"
+        className="story-card-print group relative flex flex-col justify-between bg-white/80 border border-[#DFD9CE] rounded-xl p-5 shadow-sm hover:shadow-md transition-all text-[#141413]"
       >
         <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-1.5 mb-2 border-b border-[#c8c2b6] text-[10px] font-mono uppercase tracking-wider">
-            <div className="flex items-center gap-1.5">
-              <span className="px-1.5 py-0.5 bg-[#111111] text-[#f9f6ef] font-bold">
-                {story.sectionLabel}
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-mono uppercase tracking-wider text-[#4A463F]">
+            {formattedPriority && (
+              <span className="bg-[#EAE4D7] text-[#141413] font-mono text-xs px-2 py-0.5 rounded">
+                {formattedPriority}
               </span>
-              <span className="text-[#4a4742]">·</span>
-              <span className="font-bold text-[#111111]">
-                30-SEC EXEC BRIEF
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {story.citations.map((citation, i) => (
-                <a
-                  key={i}
-                  href={citation.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline font-semibold text-[#111111]"
-                >
-                  {citation.sourceName} ↗
-                </a>
-              ))}
-              <a
-                href={primaryUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="no-print font-bold text-[#111111] hover:underline"
-              >
-                [ Read Original Article ↗ ]
-              </a>
-            </div>
+            )}
+            <span className="font-semibold text-[#141413]">{kickerText}</span>
+            <span className="text-[#C8C2B6]">·</span>
+            <span>{story.readTimeMinutes}M</span>
+            <ScoreBadge score={story.intersectionScore} />
           </div>
 
           <h2
             onClick={() => onOpenStoryModal?.(story)}
-            className="font-headline font-bold text-lg sm:text-xl text-[#111111] leading-snug mb-2.5 hover:underline cursor-pointer"
+            className="font-headline text-xl font-bold text-[#141413] mt-2 mb-2 leading-snug hover:underline underline-offset-4 decoration-[#DFD9CE] cursor-pointer"
             style={{
               fontFamily: "var(--font-playfair), 'Times New Roman', serif",
             }}
@@ -220,15 +420,19 @@ export function StoryCard({
             {story.headline}
           </h2>
 
-          <ul className="space-y-2 text-xs font-serif text-[#111111] leading-relaxed list-none">
+          <p className="font-serif italic text-sm text-[#4A463F] border-l-2 border-[#8C2D19] pl-3 my-2.5">
+            {story.subheadline}
+          </p>
+
+          <ul className="mt-3 space-y-2 text-xs font-serif text-[#2C2A26] leading-relaxed list-none">
             {bullets.map((b, idx) => (
               <li key={idx} className="flex items-start gap-2">
-                <span className="font-mono font-bold text-[#111111] shrink-0 mt-0.5">
-                  ▪
+                <span className="text-[#8C2D19] shrink-0 leading-relaxed" aria-hidden="true">
+                  ■
                 </span>
                 <span>
-                  <strong className="font-mono text-[10px] uppercase tracking-wider bg-[#e5dec9] px-1 py-0.5 mr-1.5 text-[#111111]">
-                    {b.leadMetric}
+                  <strong className="font-sans font-bold text-[#141413] mr-1">
+                    {b.leadMetric}:
                   </strong>
                   {b.detail}
                 </span>
@@ -237,79 +441,56 @@ export function StoryCard({
           </ul>
         </div>
 
-        {/* Calibration Strip in Executive Mode */}
-        <footer className="no-print mt-3 pt-1.5 border-t border-[#c8c2b6] flex flex-wrap items-center justify-between gap-1 text-[10px] font-mono text-[#4a4742]">
-          <button
-            type="button"
-            onClick={() => onOpenStoryModal?.(story)}
-            className="text-[#111111] font-bold hover:underline cursor-pointer uppercase"
-          >
-            [ Expand Full Reader Drawer → ]
-          </button>
-
-          <div className="flex flex-wrap items-center gap-1">
-            <button
-              type="button"
-              onClick={() => sendFeedbackApi("more")}
-              className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase cursor-pointer"
-            >
-              [ + More ]
-            </button>
-            <button
-              type="button"
-              onClick={() => sendFeedbackApi("too_basic")}
-              className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase cursor-pointer"
-            >
-              [ Too Basic ]
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setIsSkipped(true);
-                sendFeedbackApi("skip");
-              }}
-              className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#991b1b] font-semibold uppercase cursor-pointer"
-            >
-              [ ✕ Skip Story ]
-            </button>
-          </div>
-        </footer>
+        {actionBar}
       </article>
     );
   }
+
+  const socratic = tone === "socratic" ? buildSocraticAnalysis(story) : null;
 
   return (
     <article
       id={story.id}
       onMouseUp={handleParagraphMouseUp}
-      className="story-card-print group relative flex flex-col justify-between bg-transparent text-[#111111]"
+      className="story-card-print group relative flex flex-col justify-between bg-transparent border-t-[3px] border-[#141413] pt-4 text-[#141413]"
     >
       <div>
-        {/* Classic Typographic Dateline & Small-Caps Kicker */}
-        <div className="mb-1.5 text-[11px] font-mono uppercase tracking-wider text-[#4a4742] leading-snug flex flex-wrap items-center justify-between gap-1">
-          <div>
-            <span className="font-bold text-[#111111]">
-              {story.sectionLabel.toUpperCase()}
+        {/* Ink-Stamped Socratic Critique & Counter-Question Box (when tone === 'socratic') */}
+        {tone === "socratic" && socratic && (
+          <div className="mb-3.5 p-3 border-2 border-[#141413] bg-[#efeae0] rounded-sm text-[#141413]">
+            <div className="font-mono font-bold text-[10px] uppercase tracking-wider text-[#8C2D19]">
+              ■ SOCRATIC CRITIQUE &amp; COUNTER-QUESTION: What assumptions is this reporting taking for granted?
+            </div>
+            <p className="mt-1 text-xs font-serif italic text-[#3d3a35] leading-snug">
+              {socratic.counterQuestion}
+            </p>
+          </div>
+        )}
+
+        {/* Vibrant Editorial Crimson Section Kicker & Metadata Header */}
+        <div className="mb-2 text-[11px] font-mono uppercase tracking-wider leading-snug flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[#141413] font-semibold">
+              <span className="text-[#8C2D19]">■</span> {kickerText}
             </span>
-            <span className="mx-1.5">·</span>
-            <span>{bylineText}</span>
-            <span className="mx-1.5">·</span>
-            <span>{story.readTimeMinutes} MIN READ</span>
+            <span className="text-[#c8c2b6]">·</span>
+            <span className="text-[#4a4742] font-semibold">{bylineText}</span>
+            <span className="text-[#c8c2b6]">·</span>
+            <span className="text-[#4a4742]">{story.readTimeMinutes} MIN READ</span>
           </div>
 
-          <button
-            type="button"
-            onClick={() => onOpenStoryModal?.(story)}
-            className="no-print text-[10px] font-mono uppercase underline text-[#4a4742] hover:text-[#111111] cursor-pointer"
-          >
-            [ Reader View ]
-          </button>
+          <div className="flex items-center gap-1.5">
+            <ScoreBadge score={story.intersectionScore} />
+            <span className="px-2 py-0.5 rounded-sm bg-[#ebe6dc] text-[#3d3a35] font-sans font-semibold text-[10px] uppercase tracking-wider">
+              {story.provenanceBadge}
+            </span>
+          </div>
         </div>
 
         {/* Clickable Headline -> Opens StoryModal.tsx */}
         <h2
           onClick={() => onOpenStoryModal?.(story)}
-          className={`font-headline font-bold text-[#111111] leading-[1.08] tracking-tight mb-2 hover:underline decoration-1 underline-offset-4 cursor-pointer transition-colors ${
+          className={`font-headline font-bold text-[#141413] leading-[1.08] tracking-tight mb-2 hover:text-[#8C2D19] transition-colors cursor-pointer ${
             featured
               ? "text-3xl sm:text-4xl md:text-[38px]"
               : isIncubator
@@ -327,129 +508,97 @@ export function StoryCard({
         </h2>
 
         {/* Subheadline / Deck */}
-        <p className="font-serif text-[#3d3a35] italic leading-snug text-[15px] mb-2">
+        <p className="font-serif text-[#3d3a35] italic leading-snug text-[15px] mb-3">
           {story.subheadline}
         </p>
 
-        {/* Byline, Provenance & Prominent [ Read Original Article ↗ ] Link */}
-        <div className="border-y border-[#c8c2b6] py-1.5 my-2.5 text-[11px] font-mono uppercase tracking-wider text-[#4a4742] flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
-          <div>
-            <span className="font-bold text-[#111111]">
-              {story.provenanceBadge}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-            <span>SOURCES:</span>
-            {story.citations.map((citation, i) => (
-              <a
-                key={i}
-                href={citation.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[#111111] font-semibold underline decoration-[#4a4742] hover:decoration-[#111111] transition-colors"
-                title={`Verify source: ${citation.sourceName}`}
-              >
-                {citation.sourceName} ↗
-              </a>
-            ))}
-
+        {/* Compact Source Citations Pill Strip (No extra horizontal rules) */}
+        <div className="my-2 flex flex-wrap items-center gap-1.5 text-[11px] font-sans">
+          <span className="font-mono text-[10px] uppercase tracking-wider text-[#4a4742] mr-1">
+            Sources:
+          </span>
+          {story.citations.map((citation, i) => (
             <a
-              href={primaryUrl}
+              key={i}
+              href={citation.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="no-print inline-flex items-center px-1.5 py-0.5 border border-[#111111] bg-[#efeae0] text-[#111111] hover:bg-[#111111] hover:text-[#f9f6ef] font-bold transition-colors"
-              title="Open original publisher article in a new tab"
+              className="inline-flex items-center px-2 py-0.5 rounded-sm bg-[#EAE4D7] hover:bg-[#DFD9CE] text-[#141413] font-medium text-[11px] transition-colors"
+              title={`Verify source: ${citation.sourceName}`}
             >
-              [ Read Original Article ↗ ]
+              {citation.sourceName} <ArrowUpRight className="w-3 h-3 ml-0.5" aria-hidden="true" />
             </a>
-          </div>
+          ))}
         </div>
 
         {/* Reported Facts Body Text (Justified Serif with Classic Drop-Cap) */}
         <div
-          className={`font-serif text-[#111111] text-[15px] leading-[1.55] text-justify my-3 ${
+          className={`font-serif text-[#141413] text-[15px] leading-[1.58] text-justify my-3.5 ${
             useMultiColBody ? "md:columns-2 gap-6 print-cols-2" : ""
           }`}
         >
           <p className="drop-cap">{story.reportedFacts}</p>
         </div>
 
-        {/* Framing Divergence Ledger Box (Dawn vs Reuters, etc.) */}
+        {/* Framing Divergence Two-Tone Comparison Card */}
         {story.framingDivergence && (
-          <div className="border-y-2 border-[#111111] py-2.5 my-3.5 bg-transparent text-xs font-serif">
-            <div className="font-mono uppercase tracking-widest text-[10px] font-bold text-[#111111] pb-1.5 mb-2 border-b border-[#c8c2b6]">
-              FRAMING DIVERGENCE · EDITORIAL COMPARISON
+          <div className={`${INSIGHT_CARD} no-print`}>
+            <div className={INSIGHT_HEADER}>
+              <span className="text-[#8C2D19]">■</span> Framing Divergence · Editorial Comparison
             </div>
-            <p className="italic text-[#4a4742] mb-2.5 leading-snug">
+            <p className="italic text-[#2C2A26] mb-3">
               {story.framingDivergence.summary}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[#c8c2b6] pt-1 border-t border-[#c8c2b6] text-[12px]">
-              <div className="pb-2 sm:pb-0 sm:pr-3">
-                <div className="font-mono font-bold text-[#111111] uppercase tracking-wider text-[10px] mb-0.5">
-                  <a
-                    href={story.framingDivergence.sourceA.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-[#4a4742]"
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12px]">
+              {[story.framingDivergence.sourceA, story.framingDivergence.sourceB].map(
+                (src, i) => (
+                  <div
+                    key={i}
+                    className="bg-white/60 border border-[#DFD9CE] rounded-sm p-2.5"
                   >
-                    {story.framingDivergence.sourceA.name.toUpperCase()} ↗:
-                  </a>
-                </div>
-                <p className="text-[#111111] leading-snug text-justify">
-                  {story.framingDivergence.sourceA.framing}
-                </p>
-              </div>
-              <div className="pt-2 sm:pt-0 sm:pl-3">
-                <div className="font-mono font-bold text-[#111111] uppercase tracking-wider text-[10px] mb-0.5">
-                  <a
-                    href={story.framingDivergence.sourceB.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="underline hover:text-[#4a4742]"
-                  >
-                    {story.framingDivergence.sourceB.name.toUpperCase()} ↗:
-                  </a>
-                </div>
-                <p className="text-[#111111] leading-snug text-justify">
-                  {story.framingDivergence.sourceB.framing}
-                </p>
-              </div>
+                    <div className="mb-1.5">
+                      <a
+                        href={src.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 font-mono text-[10px] font-semibold uppercase tracking-wider text-[#141413] underline underline-offset-2 decoration-[#DFD9CE] hover:decoration-[#141413]"
+                      >
+                        {src.name} <ArrowUpRight className="w-3 h-3" aria-hidden="true" />
+                      </a>
+                    </div>
+                    <p className="text-[#2C2A26] leading-snug">{src.framing}</p>
+                  </div>
+                )
+              )}
             </div>
           </div>
         )}
 
-        {/* Continuity Ledger Box ("What Changed Since Yesterday?") */}
+        {/* Continuity Ledger Card (Oxford Teal/Navy Left Accent) */}
         {story.continuity && (
-          <div className="border-y-2 border-[#111111] py-2.5 my-3.5 bg-transparent text-xs font-serif">
-            <div className="font-mono uppercase tracking-widest text-[10px] font-bold text-[#111111] pb-1.5 mb-2 border-b border-[#c8c2b6]">
-              CONTINUITY LEDGER · WHAT CHANGED SINCE{" "}
+          <div className={`${INSIGHT_CARD} no-print`}>
+            <div className={INSIGHT_HEADER}>
+              <span className="text-[#8C2D19]">■</span> Continuity Ledger · What Changed Since{" "}
               {story.continuity.previousDate}
             </div>
-            <div className="space-y-1.5 text-[#111111] leading-snug">
+            <div className="space-y-1.5 text-[#2C2A26] leading-snug">
               <div>
-                <strong className="font-mono text-[10px] uppercase tracking-wider text-[#111111] mr-1.5">
-                  PREVIOUSLY —
+                <strong className="font-mono text-[10px] uppercase tracking-wider font-semibold text-[#141413] mr-1.5">
+                  Previously:
                 </strong>
-                <span className="text-[#4a4742]">
-                  {story.continuity.previously}
-                </span>
+                <span>{story.continuity.previously}</span>
               </div>
               <div>
-                <strong className="font-mono text-[10px] uppercase tracking-wider text-[#111111] mr-1.5">
-                  TODAY —
+                <strong className="font-mono text-[10px] uppercase tracking-wider font-semibold text-[#141413] mr-1.5">
+                  Today:
                 </strong>
-                <span className="font-semibold text-[#111111]">
-                  {story.continuity.newDevelopment}
-                </span>
+                <span className="font-semibold">{story.continuity.newDevelopment}</span>
               </div>
               <div>
-                <strong className="font-mono text-[10px] uppercase tracking-wider text-[#111111] mr-1.5">
-                  UNRESOLVED —
+                <strong className="font-mono text-[10px] uppercase tracking-wider font-semibold text-[#141413] mr-1.5">
+                  Unresolved:
                 </strong>
-                <span className="italic text-[#4a4742]">
-                  {story.continuity.remainsUncertain}
-                </span>
+                <span className="italic">{story.continuity.remainsUncertain}</span>
               </div>
             </div>
           </div>
@@ -458,60 +607,60 @@ export function StoryCard({
         {/* Incubator Module: Economist-Style Special Briefing */}
         {story.incubatorModule &&
           story.incubatorModule.kind === "css_brief" && (
-            <div className="border-y-2 border-[#111111] py-3.5 my-4 bg-transparent font-serif">
-              <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-3 border-b border-[#111111] text-[11px] font-mono uppercase tracking-widest text-[#111111]">
-                <span className="font-bold">
-                  SPECIAL BRIEFING · CSS EXAM ANALYTICAL BREAKDOWN
+            <div className="bg-[#ebe6dc]/75 border border-[#d6cfc2] rounded-md p-4 my-4 font-serif">
+              <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 mb-3 border-b border-[#d6cfc2] text-[11px] font-sans uppercase tracking-wider text-[#141413]">
+                <span className="font-bold text-[#8C2D19]">
+                  ■ Special Briefing · CSS Exam Analytical Breakdown
                 </span>
-                <span className="text-[#4a4742]">
-                  STRUCTURED FOUR-PART DOSSIER
+                <span className="text-[#4a4742] font-semibold">
+                  Structured Four-Part Dossier
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-[#c8c2b6] text-[13px]">
-                <div className="py-2 md:py-0 md:pr-4">
-                  <div className="font-mono font-bold uppercase tracking-wider text-[#111111] text-[11px] mb-1">
-                    I. HISTORICAL & STRUCTURAL BACKGROUND
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-[13px]">
+                <div className="bg-[#f9f6ef] border border-[#d6cfc2] rounded-sm p-3">
+                  <div className="font-sans font-bold uppercase tracking-wider text-[#8C2D19] text-[10px] mb-1">
+                    I. Historical &amp; Structural Background
                   </div>
-                  <p className="text-[#111111] leading-[1.5] text-justify">
+                  <p className="text-[#141413] leading-[1.5]">
                     {story.incubatorModule.background}
                   </p>
                 </div>
 
-                <div className="py-2 md:py-0 md:px-4">
-                  <div className="font-mono font-bold uppercase tracking-wider text-[#111111] text-[11px] mb-1">
-                    II. CORE ISSUE & BOTTLENECK
+                <div className="bg-[#f9f6ef] border border-[#d6cfc2] rounded-sm p-3">
+                  <div className="font-sans font-bold uppercase tracking-wider text-[#8C2D19] text-[10px] mb-1">
+                    II. Core Issue &amp; Bottleneck
                   </div>
-                  <p className="text-[#111111] leading-[1.5] text-justify">
+                  <p className="text-[#141413] leading-[1.5]">
                     {story.incubatorModule.coreIssue}
                   </p>
                 </div>
 
-                <div className="py-2 md:py-0 md:px-4">
-                  <div className="font-mono font-bold uppercase tracking-wider text-[#111111] text-[11px] mb-1">
-                    III. CONSTITUTIONAL & POLICY ANGLE
+                <div className="bg-[#f9f6ef] border border-[#d6cfc2] rounded-sm p-3">
+                  <div className="font-sans font-bold uppercase tracking-wider text-[#8C2D19] text-[10px] mb-1">
+                    III. Constitutional &amp; Policy Angle
                   </div>
-                  <p className="text-[#111111] leading-[1.5] text-justify">
+                  <p className="text-[#141413] leading-[1.5]">
                     {story.incubatorModule.policyAngle}
                   </p>
                 </div>
 
-                <div className="py-2 md:py-0 md:pl-4">
-                  <div className="font-mono font-bold uppercase tracking-wider text-[#111111] text-[11px] mb-1">
-                    IV. ACTIONABLE WAY FORWARD
+                <div className="bg-[#f9f6ef] border border-[#d6cfc2] rounded-sm p-3">
+                  <div className="font-sans font-bold uppercase tracking-wider text-[#8C2D19] text-[10px] mb-1">
+                    IV. Actionable Way Forward
                   </div>
-                  <p className="text-[#111111] leading-[1.5] text-justify">
+                  <p className="text-[#141413] leading-[1.5]">
                     {story.incubatorModule.wayForward}
                   </p>
                 </div>
               </div>
 
               {story.incubatorModule.practiceQuestion && (
-                <div className="mt-3 pt-2.5 border-t border-[#c8c2b6] text-[13px] flex flex-col sm:flex-row sm:items-baseline gap-1.5">
-                  <span className="font-mono font-bold uppercase tracking-wider text-[10px] text-[#111111] shrink-0">
-                    ■ EXAMINER&apos;S PROMPT:
+                <div className="mt-3 p-2.5 bg-[#F3EFE6] border border-[#DFD9CE] border-l-[3px] border-l-[#141413] rounded-r-sm text-[13px] flex flex-col sm:flex-row sm:items-baseline gap-1.5">
+                  <span className="font-mono font-semibold uppercase tracking-wider text-[10px] text-[#141413] shrink-0">
+                    <span className="text-[#8C2D19]">■</span> Examiner&apos;s Prompt:
                   </span>
-                  <p className="italic text-[#111111] leading-snug">
+                  <p className="italic text-[#2C2A26] leading-snug">
                     {story.incubatorModule.practiceQuestion}
                   </p>
                 </div>
@@ -519,13 +668,16 @@ export function StoryCard({
 
               {story.incubatorModule.keyTerms &&
                 story.incubatorModule.keyTerms.length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-[#c8c2b6] text-[11px] font-mono text-[#4a4742]">
-                    <span className="text-[#111111] font-bold uppercase tracking-wider mr-2">
-                      LEXICON:
+                  <div className="mt-2.5 pt-2 text-[11px] font-sans text-[#4a4742] flex flex-wrap gap-2 items-center">
+                    <span className="text-[#141413] font-bold uppercase tracking-wider">
+                      Lexicon:
                     </span>
                     {story.incubatorModule.keyTerms.map((t, idx) => (
-                      <span key={idx} className="inline-block mr-3">
-                        <strong className="text-[#111111] uppercase">
+                      <span
+                        key={idx}
+                        className="inline-block bg-[#f9f6ef] border border-[#d6cfc2] rounded-sm px-2 py-0.5"
+                      >
+                        <strong className="text-[#141413] uppercase">
                           {t.term}:
                         </strong>{" "}
                         <span className="font-serif italic text-[#4a4742]">
@@ -540,17 +692,17 @@ export function StoryCard({
 
         {story.incubatorModule &&
           story.incubatorModule.kind === "domain_primer" && (
-            <div className="border-y-2 border-[#111111] py-3 my-3.5 bg-transparent font-serif text-xs">
-              <div className="font-mono uppercase tracking-widest text-[10px] font-bold text-[#111111] pb-1.5 mb-2 border-b border-[#c8c2b6]">
-                SPECIAL BRIEFING · DOMAIN PRIMER:{" "}
+            <div className="bg-[#ebe6dc] border border-[#d6cfc2] rounded-md p-3.5 my-3 font-serif text-xs">
+              <div className="font-sans uppercase tracking-wider text-[11px] font-bold text-[#8C2D19] mb-1.5">
+                ■ Special Briefing · Domain Primer:{" "}
                 {story.incubatorModule.concept}
               </div>
-              <p className="text-[#111111] leading-relaxed mb-2 text-justify">
+              <p className="text-[#141413] leading-relaxed mb-2">
                 {story.incubatorModule.explanation}
               </p>
-              <p className="italic text-[#4a4742] leading-snug">
-                <strong className="font-mono not-italic text-[10px] uppercase text-[#111111] mr-1.5">
-                  ANALOGY —
+              <p className="italic text-[#3d3a35] leading-snug">
+                <strong className="font-sans not-italic text-[10px] uppercase text-[#141413] mr-1.5">
+                  Analogy:
                 </strong>
                 {story.incubatorModule.analogy}
               </p>
@@ -559,114 +711,66 @@ export function StoryCard({
 
         {story.incubatorModule &&
           story.incubatorModule.kind === "bilingual_passage" && (
-            <div className="border-y-2 border-[#111111] py-3 my-3.5 bg-transparent font-serif text-xs">
-              <div className="font-mono uppercase tracking-widest text-[10px] font-bold text-[#111111] pb-1.5 mb-2 border-b border-[#c8c2b6]">
-                BILINGUAL READING DISPATCH ·{" "}
+            <div className="bg-[#ebe6dc] border border-[#d6cfc2] rounded-md p-3.5 my-3 font-serif text-xs">
+              <div className="font-sans uppercase tracking-wider text-[11px] font-bold text-[#8C2D19] mb-2">
+                ■ Bilingual Reading Dispatch ·{" "}
                 {story.incubatorModule.language.toUpperCase()}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-[#c8c2b6]">
-                <p className="pb-2 sm:pb-0 sm:pr-3 text-[#111111] font-medium leading-relaxed">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <p className="bg-[#f9f6ef] p-2.5 rounded-sm text-[#141413] font-medium leading-relaxed">
                   {story.incubatorModule.passage}
                 </p>
-                <p className="pt-2 sm:pt-0 sm:pl-3 text-[#4a4742] italic leading-relaxed">
+                <p className="bg-[#f9f6ef] p-2.5 rounded-sm text-[#4a4742] italic leading-relaxed">
                   {story.incubatorModule.translation}
                 </p>
               </div>
             </div>
           )}
 
-        {/* Editor's Margin Note ("Why It Matters" / Lens Note) */}
-        <div className="border-t border-[#c8c2b6] pt-2 my-2.5 text-[13px] font-serif leading-snug text-[#4a4742] italic">
-          <span className="font-mono not-italic font-bold text-[10px] uppercase tracking-wider text-[#111111] mr-1.5">
-            ■ EDITOR&apos;S LENS [{story.includedBecause.toUpperCase()}]:
-          </span>
-          <span>{story.whyYou}</span>
-        </div>
+        {/* Socratic Italicized Analytical Notes: Trade-Offs & Unanswered Structural Questions */}
+        {tone === "socratic" && socratic && (
+          <div className={`${INSIGHT_CARD} space-y-2`}>
+            <div className={INSIGHT_HEADER}>
+              <span className="text-[#8C2D19]">■</span> Socratic Analytical Notes · Trade-Offs &amp; Unanswered Structural Questions
+            </div>
+            <p className="italic text-[#2C2A26]">
+              <strong className="font-mono not-italic text-[10px] uppercase tracking-wider font-semibold text-[#141413] mr-1.5">
+                Structural Trade-Off —
+              </strong>
+              {socratic.structuralTradeOff}
+            </p>
+            <p className="italic text-[#2C2A26]">
+              <strong className="font-mono not-italic text-[10px] uppercase tracking-wider font-semibold text-[#141413] mr-1.5">
+                Unanswered Structural Question —
+              </strong>
+              {socratic.unansweredQuestion}
+            </p>
+          </div>
+        )}
 
-        {/* "What To Watch Next" Catalyst Line */}
-        <div className="pt-1.5 border-t border-[#c8c2b6] text-xs font-serif text-[#111111] leading-snug">
-          <strong className="font-mono text-[10px] uppercase tracking-wider text-[#4a4742] mr-1.5">
-            NEXT CATALYST —
-          </strong>
-          <span>{story.whatToWatchNext}</span>
+        {/* Editor's Lens (Why You) */}
+        <div className={INSIGHT_CARD}>
+          <div className={INSIGHT_HEADER}>
+            <span className="text-[#8C2D19]">■</span> Editor&apos;s Lens · {story.includedBecause}
+          </div>
+          <p className="italic text-[#2C2A26]">{story.whyYou}</p>
+          <div className="mt-2 pt-2 border-t border-[#DFD9CE] text-xs not-italic text-[#2C2A26]">
+            <strong className="font-mono text-[10px] uppercase tracking-wider font-semibold text-[#141413] mr-1.5">
+              What to Watch Next:
+            </strong>
+            <span>{story.whatToWatchNext}</span>
+          </div>
         </div>
       </div>
 
       {/* Inline Feedback Toast */}
       {feedbackNotice && (
-        <div className="no-print mt-2 py-1 px-2 bg-[#111111] text-[#f9f6ef] text-[10px] font-mono uppercase tracking-wider">
+        <div className="no-print mt-2 py-1.5 px-3 bg-[#141413] text-white rounded-md text-[11px] font-sans font-medium tracking-wide">
           ■ {feedbackNotice}
         </div>
       )}
 
-      {/* Editorial Calibration Controls: Revealed on hover/focus */}
-      <footer className="no-print mt-2 pt-1.5 border-t border-[#c8c2b6] flex flex-wrap items-center justify-between gap-1 text-[10px] font-mono text-[#4a4742] opacity-80 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-        <span className="uppercase tracking-widest text-[9px]">
-          CALIBRATE:
-        </span>
-
-        <div className="flex flex-wrap items-center gap-1">
-          <button
-            type="button"
-            onClick={() => sendFeedbackApi("more")}
-            className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase tracking-wider cursor-pointer transition-colors"
-            title="More like this (+8% Lens Weight)"
-          >
-            [ + More ]
-          </button>
-
-          <button
-            type="button"
-            onClick={() => sendFeedbackApi("too_basic")}
-            className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase tracking-wider cursor-pointer transition-colors"
-            title="I already know this — raise technical depth baseline"
-          >
-            [ Too Basic ]
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              sendFeedbackApi("wrong_angle");
-              if (onSendToEditor) {
-                onSendToEditor(story);
-              }
-            }}
-            className="px-1.5 py-0.5 border border-transparent hover:border-[#111111] text-[#111111] uppercase tracking-wider cursor-pointer transition-colors"
-            title="Wrong editorial angle — open Chief Editor Desk"
-          >
-            [ Wrong Angle ]
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setIsTracked(!isTracked);
-              sendFeedbackApi("track");
-            }}
-            className={`px-1.5 py-0.5 border uppercase tracking-wider cursor-pointer transition-colors ${
-              isTracked
-                ? "bg-[#111111] text-[#f9f6ef] border-[#111111] font-bold"
-                : "border-transparent hover:border-[#111111] text-[#111111]"
-            }`}
-            title="Track this evolving thread in future morning editions"
-          >
-            {isTracked ? "[ ■ Tracked ]" : "[ Track ]"}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              setIsSkipped(true);
-              sendFeedbackApi("skip", false);
-            }}
-            className="px-1.5 py-0.5 border border-transparent hover:border-[#991b1b] text-[#991b1b] font-semibold uppercase tracking-wider cursor-pointer transition-colors"
-            title="Skip story and reduce weight for matching life lenses"
-          >
-            [ ✕ Skip Story ]
-          </button>
-        </div>
-      </footer>
+      {actionBar}
     </article>
   );
 }

@@ -143,6 +143,9 @@ export async function resetDb(): Promise<SubhDatabase> {
 function findActiveProfile(db: SubhDatabase): UserProfile {
   const profile = db.profiles.find((p) => p.id === db.activeProfileId) ?? db.profiles[0];
   if (!profile) throw new Error("[store] No profiles found in database.");
+  if (!profile.editorialTone) {
+    profile.editorialTone = "classical";
+  }
   return profile;
 }
 
@@ -152,21 +155,25 @@ export async function getActiveProfile(): Promise<UserProfile> {
 
 /**
  * Saves the given profile as-is (inserting it if new) and marks it active.
- * Does not bump `version` — use `updateActiveProfile` for tracked mutations.
+ * Does not bump `version` — use `updateActiveProfile` or `updateUserProfile` for tracked mutations.
  */
 export async function saveProfile(profile: UserProfile): Promise<UserProfile> {
   return updateDb((db) => {
-    const idx = db.profiles.findIndex((p) => p.id === profile.id);
-    if (idx >= 0) db.profiles[idx] = profile;
-    else db.profiles.push(profile);
-    db.activeProfileId = profile.id;
-    return profile;
+    const normalized: UserProfile = {
+      ...profile,
+      editorialTone: profile.editorialTone ?? "classical",
+    };
+    const idx = db.profiles.findIndex((p) => p.id === normalized.id);
+    if (idx >= 0) db.profiles[idx] = normalized;
+    else db.profiles.push(normalized);
+    db.activeProfileId = normalized.id;
+    return normalized;
   });
 }
 
 /**
  * Applies a mutation to the active profile, bumps `version` + `updatedAt`, and
- * optionally appends a change-log entry (used by the Chief Editor / inline feedback).
+ * optionally appends a change-log entry (used by the Chief Editor / inline feedback / tone switcher).
  */
 export async function updateActiveProfile(
   mutate: (profile: UserProfile) => UserProfile,
@@ -175,8 +182,10 @@ export async function updateActiveProfile(
   return updateDb((db) => {
     const current = findActiveProfile(db);
     const now = new Date().toISOString();
+    const mutated = mutate(structuredClone(current));
     const next: UserProfile = {
-      ...mutate(structuredClone(current)),
+      ...mutated,
+      editorialTone: mutated.editorialTone ?? current.editorialTone ?? "classical",
       id: current.id,
       version: current.version + 1,
       updatedAt: now,
@@ -194,6 +203,34 @@ export async function updateActiveProfile(
     db.profiles = db.profiles.map((p) => (p.id === current.id ? next : p));
     return next;
   });
+}
+
+/**
+ * Updates the active user profile (including `editorialTone`), accepting either
+ * a partial profile patch or a mutator function.
+ */
+export async function updateUserProfile(
+  patchOrMutate:
+    | Partial<
+        Pick<
+          UserProfile,
+          "name" | "lifeLenses" | "incubatorGoal" | "trackedStoryIds" | "editorialTone"
+        >
+      >
+    | ((profile: UserProfile) => UserProfile),
+  logEntry?: Omit<ProfileChangeLog, "id" | "timestamp"> & Partial<Pick<ProfileChangeLog, "id" | "timestamp">>,
+): Promise<UserProfile> {
+  if (typeof patchOrMutate === "function") {
+    return updateActiveProfile(patchOrMutate, logEntry);
+  }
+  return updateActiveProfile(
+    (prev) => ({
+      ...prev,
+      ...patchOrMutate,
+      editorialTone: patchOrMutate.editorialTone ?? prev.editorialTone ?? "classical",
+    }),
+    logEntry,
+  );
 }
 
 /* -------------------------------------------------------------------------- */

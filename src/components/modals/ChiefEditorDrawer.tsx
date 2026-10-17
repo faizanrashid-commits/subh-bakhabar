@@ -231,7 +231,7 @@ export function ChiefEditorDrawer({
       const data = await res.json();
       if (data.success && data.story) {
         setRegenNotice(
-          `✓ Regenerated "${data.story.headline.slice(0, 48)}..." live in today's broadsheet!`
+          `Regenerated "${data.story.headline.slice(0, 48)}..." live in today's broadsheet!`
         );
         if (onStoryRegenerated) {
           onStoryRegenerated(data.story);
@@ -254,73 +254,73 @@ export function ChiefEditorDrawer({
       onClick={onClose}
     >
       <aside
-        className="relative w-full max-w-xl h-full overflow-y-auto bg-[#f9f6ef] text-[#111111] border-l-2 border-[#111111] p-6 font-serif shadow-2xl flex flex-col justify-between"
+        className="relative w-full max-w-xl h-full overflow-y-auto bg-[#FAF7F2] text-[#141413] border-l border-[#DFD9CE] p-6 font-sans shadow-2xl flex flex-col justify-between"
         onClick={(e) => e.stopPropagation()}
         aria-label="Chief Editor's Desk Drawer"
       >
         <div>
           {/* Drawer Header */}
-          <div className="flex items-start justify-between gap-3 pb-3 mb-4 border-b-2 border-[#111111]">
+          <div className="flex items-start justify-between gap-3 pb-4 mb-5 border-b border-[#DFD9CE]">
             <div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-[#4a4742]">
-                STAGE 5 · ADAPTIVE EDITORIAL LOOP
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-[#EFECE6] px-2.5 py-1 text-[10px] font-mono font-semibold uppercase tracking-wider text-[#141413]">
+                <Sparkles className="w-3 h-3" aria-hidden="true" />
+                AI EDITORIAL DESK
               </div>
               <h2
-                className="text-2xl font-bold text-[#111111]"
+                className="mt-2 text-2xl font-bold text-[#141413]"
                 style={{
                   fontFamily: "var(--font-playfair), 'Times New Roman', serif",
                 }}
               >
-                Chief Editor&apos;s Desk
+                Direct the Editor
               </h2>
             </div>
 
             <button
               onClick={onClose}
-              className="border border-[#111111] px-2.5 py-1 text-xs font-mono uppercase hover:bg-[#111111] hover:text-[#f9f6ef] transition-colors cursor-pointer flex items-center gap-1"
+              className="bg-white/80 text-[#141413] border border-[#DCD6C9] hover:bg-[#F3EFE6] rounded-md px-2.5 py-1 text-[11px] font-sans font-medium transition-all cursor-pointer flex items-center gap-1"
             >
               <X className="w-3.5 h-3.5" />
               <span>Close</span>
             </button>
           </div>
 
-          {/* Two Views Switcher */}
-          <div className="grid grid-cols-2 border border-[#111111] mb-5 font-mono text-[11px] uppercase tracking-wider">
+          {/* Segmented Tab Switcher */}
+          <div className="grid grid-cols-2 gap-1 bg-[#EFECE6] p-1 rounded-lg mb-5 font-sans text-xs">
             <button
               onClick={() => setActiveView("command")}
-              className={`py-2 px-3 flex items-center justify-center gap-1.5 cursor-pointer transition-colors ${
+              className={`py-2 px-3 flex items-center justify-center gap-1.5 rounded-md cursor-pointer transition-all font-medium ${
                 activeView === "command"
-                  ? "bg-[#111111] text-[#f9f6ef] font-bold"
-                  : "bg-transparent text-[#111111] hover:bg-[#efeae0]"
+                  ? "bg-white text-[#141413] shadow-xs"
+                  : "bg-transparent text-[#4A463F] hover:text-[#141413]"
               }`}
             >
               <Terminal className="w-3.5 h-3.5" />
-              <span>View A: Direct the Editor</span>
+              <span>Direct the Editor</span>
             </button>
 
             <button
               onClick={() => setActiveView("brain")}
-              className={`py-2 px-3 flex items-center justify-center gap-1.5 border-l border-[#111111] cursor-pointer transition-colors ${
+              className={`py-2 px-3 flex items-center justify-center gap-1.5 rounded-md cursor-pointer transition-all font-medium ${
                 activeView === "brain"
-                  ? "bg-[#111111] text-[#f9f6ef] font-bold"
-                  : "bg-transparent text-[#111111] hover:bg-[#efeae0]"
+                  ? "bg-white text-[#141413] shadow-xs"
+                  : "bg-transparent text-[#4A463F] hover:text-[#141413]"
               }`}
             >
               <Brain className="w-3.5 h-3.5" />
-              <span>
-                View B: Persona Brain ({profile?.changeLog?.length || 0})
-              </span>
+              <span>Persona Brain ({profile?.changeLog?.length || 0})</span>
             </button>
           </div>
 
-          {/* VIEW A: DIRECT THE EDITOR (CONVERSATIONAL COMMAND BAR) */}
+          {/* VIEW A: DIRECT THE EDITOR */}
           {activeView === "command" && (
             <div className="space-y-5">
-              {/* Highlighted Red-Pencil Quote Banner (if present) */}
               {highlightedQuote && (
-                <div className="p-3 bg-[#efeae0] border-l-4 border-[#991b1b] text-xs">
-                  <div className="flex items-center justify-between font-mono text-[10px] uppercase font-bold text-[#991b1b] mb-1">
-                    <span>✎ RED-PENCIL HIGHLIGHTED QUOTE</span>
+                <div className="p-3 bg-[#F3EFE6] border border-[#DFD9CE] border-l-[3px] border-l-[#8C2D19] rounded-r-lg text-xs">
+                  <div className="flex items-center justify-between font-mono text-[10px] uppercase font-semibold text-[#141413] mb-1">
+                    <span>
+                      <span className="text-[#8C2D19]">■</span> Highlighted Quote
+                    </span>
                     <button
                       type="button"
                       onClick={() => setHighlightedQuote("")}
@@ -329,18 +329,18 @@ export function ChiefEditorDrawer({
                       Clear
                     </button>
                   </div>
-                  <p className="italic text-[#111111] line-clamp-3">
+                  <p className="italic text-[#2C2A26] line-clamp-3">
                     &ldquo;{highlightedQuote}&rdquo;
                   </p>
                 </div>
               )}
 
-              {/* Quick Sample Directives */}
+              {/* Sample Directives */}
               <div>
-                <div className="text-[10px] font-mono uppercase tracking-wider text-[#4a4742] mb-1.5">
-                  Sample Directives (Click to Populate):
+                <div className="text-[10px] font-mono uppercase tracking-wider text-[#4A463F] mb-2">
+                  Sample Directives
                 </div>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-2">
                   {QUICK_DIRECTIVES.map((sample, i) => (
                     <button
                       key={i}
@@ -349,17 +349,17 @@ export function ChiefEditorDrawer({
                         setCommandInput(sample);
                         handleSendCommand(sample);
                       }}
-                      className="text-[11px] font-mono border border-[#c8c2b6] hover:border-[#111111] bg-[#efeae0]/60 px-2 py-1 text-left cursor-pointer transition-colors"
+                      className="bg-white hover:bg-[#141413] hover:text-white border border-[#DCD6C9] rounded-full px-3.5 py-1.5 text-xs font-sans text-left cursor-pointer transition-all shadow-2xs"
                     >
-                      &ldquo;{sample}&rdquo;
+                      {sample}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Conversational Command Input */}
-              <div className="border-2 border-[#111111] bg-[#f9f6ef] p-3">
-                <label className="block text-[10px] font-mono font-bold uppercase tracking-wider text-[#111111] mb-1.5">
+              {/* Prompt Composer */}
+              <div className="bg-white border border-[#D5CFC2] rounded-xl p-4 shadow-sm focus-within:ring-2 focus-within:ring-[#141413]/20">
+                <label className="block text-[10px] font-mono font-semibold uppercase tracking-wider text-[#141413] mb-2">
                   Talk Directly to the Editor-in-Chief
                 </label>
                 <textarea
@@ -367,17 +367,17 @@ export function ChiefEditorDrawer({
                   value={commandInput}
                   onChange={(e) => setCommandInput(e.target.value)}
                   placeholder="e.g., I'm starting CSS prep, add foreign policy analysis..."
-                  className="w-full bg-white/80 border border-[#c8c2b6] p-2.5 text-xs font-mono text-[#111111] focus:outline-none"
+                  className="w-full bg-transparent text-sm font-sans text-[#141413] placeholder:text-[#8A857A] resize-none focus:outline-none"
                 />
-                <div className="mt-2.5 flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-mono text-[#4a4742]">
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-mono text-[#4A463F]">
                     Validated via Gemini Flash Lite Schema
                   </span>
                   <button
                     type="button"
                     onClick={() => handleSendCommand()}
                     disabled={isSendingCommand || !commandInput.trim()}
-                    className="inline-flex items-center gap-1.5 border border-[#111111] bg-[#111111] text-[#f9f6ef] hover:bg-transparent hover:text-[#111111] px-4 py-1.5 text-xs font-mono uppercase tracking-wider cursor-pointer transition-colors disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 bg-[#141413] hover:bg-[#2C2A26] text-white rounded-lg px-4 py-2 text-xs font-sans font-medium cursor-pointer transition-colors disabled:opacity-50"
                   >
                     {isSendingCommand ? (
                       <>
@@ -394,35 +394,35 @@ export function ChiefEditorDrawer({
                 </div>
               </div>
 
-              {/* Proposed Schema-Validated Diff: Previous State -> New State */}
+              {/* Proposed Schema-Validated Diff */}
               {editorReply && (
-                <div className="border-2 border-[#111111] bg-[#efeae0]/70 p-4 space-y-3">
-                  <div className="text-[10px] font-mono font-bold uppercase tracking-widest text-[#111111]">
-                    ■ CHIEF EDITOR RESPONSE & SCHEMA PATCH
+                <div className="border border-[#DFD9CE] bg-[#F3EFE6] rounded-xl p-4 space-y-3">
+                  <div className="text-[10px] font-mono font-semibold uppercase tracking-widest text-[#141413]">
+                    <span className="text-[#8C2D19]">■</span> Chief Editor Response &amp; Schema Patch
                   </div>
-                  <p className="text-xs italic text-[#111111] leading-relaxed">
+                  <p className="text-sm text-[#2C2A26] leading-relaxed">
                     {editorReply}
                   </p>
 
                   {proposedChanges.length > 0 && (
-                    <div className="space-y-2 pt-2 border-t border-[#c8c2b6]">
-                      <div className="text-[10px] font-mono uppercase font-bold text-[#4a4742]">
+                    <div className="space-y-2 pt-2 border-t border-[#DFD9CE]">
+                      <div className="text-[10px] font-mono uppercase font-semibold text-[#4A463F]">
                         Proposed Profile Diff (Previous State → New State):
                       </div>
                       {proposedChanges.map((chg, idx) => (
                         <div
                           key={idx}
-                          className="p-2.5 bg-[#f9f6ef] border border-[#111111] text-xs font-mono space-y-1"
+                          className="p-2.5 bg-white border border-[#DFD9CE] rounded-lg text-xs font-mono space-y-1"
                         >
-                          <div className="font-bold text-[#111111] uppercase">
+                          <div className="font-semibold text-[#141413] uppercase">
                             {chg.field}
                           </div>
                           <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 text-[11px]">
-                            <span className="line-through text-[#4a4742] bg-[#efeae0] px-1.5 py-0.5">
+                            <span className="line-through text-[#4A463F] bg-[#F3EFE6] rounded px-1.5 py-0.5">
                               {chg.previousValue}
                             </span>
-                            <ArrowRight className="w-3.5 h-3.5 hidden sm:inline text-[#111111] shrink-0" />
-                            <span className="font-bold text-[#111111] bg-[#e5dec9] px-1.5 py-0.5">
+                            <ArrowRight className="w-3.5 h-3.5 hidden sm:inline text-[#141413] shrink-0" />
+                            <span className="font-semibold text-[#141413] bg-[#EAE4D7] rounded px-1.5 py-0.5">
                               {chg.newValue}
                             </span>
                           </div>
@@ -434,21 +434,21 @@ export function ChiefEditorDrawer({
                           <button
                             type="button"
                             onClick={handleApplyChange}
-                            className="inline-flex items-center gap-1.5 border border-[#111111] bg-[#111111] text-[#f9f6ef] hover:bg-transparent hover:text-[#111111] px-3.5 py-1.5 text-xs font-mono font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1.5 bg-[#141413] hover:bg-[#2C2A26] text-white rounded-lg px-3.5 py-1.5 text-xs font-sans font-medium cursor-pointer transition-colors"
                           >
                             <Check className="w-3.5 h-3.5" />
                             <span>Apply Change</span>
                           </button>
                         ) : (
-                          <span className="inline-flex items-center gap-1 text-xs font-mono font-bold text-emerald-900 bg-emerald-100 border border-emerald-800 px-2.5 py-1">
-                            ✓ Applied to Persona Brain (v{profile?.version})
+                          <span className="inline-flex items-center gap-1 text-xs font-sans font-medium text-[#141413] bg-white border border-[#DFD9CE] rounded-lg px-2.5 py-1">
+                            <Check className="w-3.5 h-3.5" aria-hidden="true" /> Applied to Persona Brain (v{profile?.version})
                           </span>
                         )}
 
                         <button
                           type="button"
                           onClick={() => handleUndoChange()}
-                          className="inline-flex items-center gap-1.5 border border-[#111111] bg-transparent text-[#111111] hover:bg-[#111111] hover:text-[#f9f6ef] px-3 py-1.5 text-xs font-mono uppercase tracking-wider cursor-pointer transition-colors"
+                          className="inline-flex items-center gap-1.5 bg-white/80 text-[#141413] border border-[#DCD6C9] hover:bg-white rounded-lg px-3 py-1.5 text-xs font-sans font-medium cursor-pointer transition-all"
                         >
                           <RotateCcw className="w-3.5 h-3.5" />
                           <span>Undo</span>
@@ -459,25 +459,26 @@ export function ChiefEditorDrawer({
                 </div>
               )}
 
-              {/* Quick Action: Live Single-Story Regeneration */}
-              <div className="border-2 border-[#111111] p-4 bg-[#f9f6ef] space-y-3">
+              {/* Instant Single-Story Regeneration */}
+              <div className="bg-[#F3EFE6] border border-[#DFD9CE] rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#111111]">
-                    ⚡ Quick Action: Instant Single-Story Regeneration
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-[#141413]">
+                    <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                    Instant Single-Story Regeneration
                   </span>
-                  <span className="text-[10px] font-mono text-[#4a4742]">
+                  <span className="text-[10px] font-mono text-[#4A463F]">
                     ~2 SEC LIVE REWRITE
                   </span>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-mono uppercase text-[#4a4742] mb-1">
+                  <label className="block text-[10px] font-mono uppercase text-[#4A463F] mb-1">
                     Select Target Story in Today&apos;s Edition:
                   </label>
                   <select
                     value={selectedStoryId}
                     onChange={(e) => setSelectedStoryId(e.target.value)}
-                    className="w-full border border-[#111111] bg-white px-2.5 py-1.5 text-xs font-mono text-[#111111]"
+                    className="w-full rounded-lg bg-white border border-[#D5CFC2] px-2.5 py-2 text-xs font-sans text-[#141413] focus:outline-none focus:ring-2 focus:ring-[#141413]/20"
                   >
                     {stories.map((st, idx) => (
                       <option key={st.id} value={st.id}>
@@ -489,7 +490,7 @@ export function ChiefEditorDrawer({
                 </div>
 
                 {regenNotice && (
-                  <div className="p-2 bg-[#efeae0] border border-[#111111] text-[11px] font-mono text-[#111111]">
+                  <div className="p-2 bg-white border border-[#DFD9CE] rounded-lg text-[11px] font-sans text-[#141413]">
                     {regenNotice}
                   </div>
                 )}
@@ -498,7 +499,7 @@ export function ChiefEditorDrawer({
                   type="button"
                   onClick={handleRegenerateStory}
                   disabled={isRegenerating}
-                  className="w-full inline-flex items-center justify-center gap-2 border border-[#111111] bg-[#111111] text-[#f9f6ef] hover:bg-transparent hover:text-[#111111] py-2 px-4 text-xs font-mono font-bold uppercase tracking-wider cursor-pointer transition-colors disabled:opacity-50"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-[#141413] hover:bg-[#2C2A26] text-white rounded-lg py-2 px-4 text-xs font-sans font-medium cursor-pointer transition-colors disabled:opacity-50"
                 >
                   {isRegenerating ? (
                     <>
@@ -516,34 +517,35 @@ export function ChiefEditorDrawer({
             </div>
           )}
 
+
           {/* VIEW B: PERSONA BRAIN & CHANGE LOG */}
           {activeView === "brain" && (
             <div className="space-y-5">
               {/* Active Lenses Summary */}
               <div>
-                <div className="flex items-center justify-between pb-1 mb-2.5 border-b border-[#111111] text-[11px] font-mono font-bold uppercase">
+                <div className="flex items-center justify-between pb-1 mb-2.5 border-b border-[#DFD9CE] text-[11px] font-mono font-bold uppercase">
                   <span>Active Life Lenses ({profile?.lifeLenses.length || 0})</span>
-                  <span>Profile v{profile?.version || 1}</span>
+                  <span>Editorial Profile</span>
                 </div>
 
                 <div className="space-y-2.5">
                   {profile?.lifeLenses.map((lens) => (
                     <div
                       key={lens.id}
-                      className="p-3 border border-[#111111] bg-[#efeae0]/40 text-xs"
+                      className="p-3 border border-[#DFD9CE] bg-[#F3EFE6] rounded-xl text-xs"
                     >
-                      <div className="flex items-center justify-between font-mono font-bold text-[#111111] mb-1">
+                      <div className="flex items-center justify-between font-mono font-bold text-[#141413] mb-1">
                         <span>{lens.title}</span>
-                        <span className="text-[10px] px-2 py-0.5 bg-[#111111] text-[#f9f6ef] uppercase">
+                        <span className="text-[10px] px-2 py-0.5 bg-[#141413] text-[#FAF7F2] uppercase rounded">
                           {lens.knowledgeBaseline} · {lens.weight}%
                         </span>
                       </div>
-                      <p className="text-[#4a4742] text-[11px] italic mb-1.5">
+                      <p className="text-[#4A463F] text-[11px] italic mb-1.5">
                         {lens.preferredAngle}
                       </p>
-                      <div className="w-full h-1.5 bg-[#c8c2b6]">
+                      <div className="w-full h-1.5 bg-[#DFD9CE] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-[#111111]"
+                          className="h-full bg-[#141413]"
                           style={{ width: `${lens.weight}%` }}
                         />
                       </div>
@@ -554,7 +556,7 @@ export function ChiefEditorDrawer({
 
               {/* Active Incubator Goal */}
               {profile?.incubatorGoal && (
-                <div className="p-3.5 border-2 border-[#111111] bg-[#efeae0]/70 text-xs">
+                <div className="p-3.5 border border-[#DFD9CE] bg-[#F3EFE6] rounded-xl text-xs">
                   <div className="flex items-center justify-between font-mono font-bold uppercase text-[11px] mb-1">
                     <span>INCUBATOR: {profile.incubatorGoal.title}</span>
                     <span>LEVEL {profile.incubatorGoal.masteryLevel}/5</span>
@@ -567,15 +569,15 @@ export function ChiefEditorDrawer({
 
               {/* Historical Change Log */}
               <div>
-                <div className="pb-1 mb-2.5 border-b border-[#111111] text-[11px] font-mono font-bold uppercase flex items-center justify-between">
+                <div className="pb-1 mb-2.5 border-b border-[#DFD9CE] text-[11px] font-mono font-bold uppercase flex items-center justify-between">
                   <span>Persona Change Log & Audit Trail</span>
-                  <span className="text-[#4a4742]">
+                  <span className="text-[#4A463F]">
                     {profile?.changeLog?.length || 0} Entries
                   </span>
                 </div>
 
                 {!profile?.changeLog || profile.changeLog.length === 0 ? (
-                  <p className="text-xs italic text-[#4a4742]">
+                  <p className="text-xs italic text-[#4A463F]">
                     No mutations recorded yet. Use inline story calibration or
                     Direct the Editor to shape your newspaper.
                   </p>
@@ -584,10 +586,10 @@ export function ChiefEditorDrawer({
                     {[...profile.changeLog].reverse().map((entry) => (
                       <div
                         key={entry.id}
-                        className="p-3 border border-[#c8c2b6] bg-white/80 text-xs space-y-1.5"
+                        className="p-3 border border-[#DFD9CE] bg-white rounded-xl text-xs space-y-1.5"
                       >
-                        <div className="flex items-center justify-between font-mono text-[10px] text-[#4a4742] uppercase">
-                          <span className="font-bold text-[#111111]">
+                        <div className="flex items-center justify-between font-mono text-[10px] text-[#4A463F] uppercase">
+                          <span className="font-bold text-[#141413]">
                             [{entry.source.replace("_", " ")}]
                           </span>
                           <span>
@@ -597,14 +599,14 @@ export function ChiefEditorDrawer({
                             })}
                           </span>
                         </div>
-                        <p className="font-serif text-[#111111] font-medium leading-snug">
+                        <p className="font-serif text-[#141413] font-medium leading-snug">
                           {entry.summary}
                         </p>
                         <div className="flex justify-end">
                           <button
                             type="button"
                             onClick={() => handleUndoChange(entry.id)}
-                            className="inline-flex items-center gap-1 border border-[#111111] px-2 py-0.5 text-[10px] font-mono uppercase hover:bg-[#111111] hover:text-[#f9f6ef] cursor-pointer transition-colors"
+                            className="inline-flex items-center gap-1 border border-[#DCD6C9] bg-white rounded-md px-2 py-0.5 text-[11px] font-sans font-medium hover:bg-[#141413] hover:text-white cursor-pointer transition-colors"
                           >
                             <RotateCcw className="w-2.5 h-2.5" />
                             <span>Undo</span>
@@ -620,9 +622,9 @@ export function ChiefEditorDrawer({
         </div>
 
         {/* Drawer Footer */}
-        <div className="mt-6 pt-3 border-t border-[#c8c2b6] text-[10px] font-mono text-[#4a4742] flex items-center justify-between uppercase">
+        <div className="mt-6 pt-3 border-t border-[#DFD9CE] text-[10px] font-mono text-[#4A463F] flex items-center justify-between uppercase">
           <span>SUBH BAKHABAR ADAPTIVE ENGINE</span>
-          <span>SCHEMA V1 · ZERO HALLUCINATIONS</span>
+          <span>INDEPENDENT CORROBORATION</span>
         </div>
       </aside>
     </div>
