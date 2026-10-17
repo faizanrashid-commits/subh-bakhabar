@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Check } from "lucide-react";
+import { ChevronDown, Check, Sparkles, RefreshCw } from "lucide-react";
 import type { Edition, EditionSummary } from "@/types/subh";
 import { formatEditionDate, toRomanNumeral } from "@/lib/format";
 import { AudioBriefBar } from "./AudioBriefBar";
@@ -24,6 +24,7 @@ export function Masthead({
   const router = useRouter();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [editorNotice, setEditorNotice] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const handlePrint = () => {
     if (typeof window !== "undefined") {
@@ -39,6 +40,41 @@ export function Masthead({
         "Chief Editor's Desk ready. Hover over any dispatch below to calibrate editorial angle, technical depth, or thread tracking."
       );
       setTimeout(() => setEditorNotice(null), 4500);
+    }
+  };
+
+  const handleGenerateFresh = async () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setEditorNotice("Ingesting live RSS feeds and synthesizing fresh 8-story broadsheet...");
+    try {
+      const res = await fetch("/api/edition/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ forceLive: false }),
+      });
+      const data = await res.json();
+      if (data.success && data.edition) {
+        setEditorNotice(
+          `Issue #${data.edition.editionNumber} generated & grounded in live RSS. Refreshing paper...`
+        );
+        setTimeout(() => {
+          router.refresh();
+          router.push(
+            data.edition.date === allEditions[0]?.date
+              ? "/"
+              : `/edition/${data.edition.date}`
+          );
+        }, 500);
+      } else {
+        setEditorNotice(
+          `Generation notice: ${data.error || "Failed to generate edition."}`
+        );
+      }
+    } catch {
+      setEditorNotice("Network issue during edition generation. Please check server.");
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -112,6 +148,25 @@ export function Masthead({
           </div>
 
           {/* Crisp Flat Typographic Action Buttons */}
+          <button
+            onClick={handleGenerateFresh}
+            disabled={isGenerating}
+            className="flex items-center gap-1.5 border border-[#111] bg-transparent hover:bg-[#111] hover:text-[#f9f6ef] font-mono text-xs uppercase tracking-wider px-3 py-1 rounded-none transition-colors cursor-pointer text-[#111111] disabled:opacity-60 disabled:cursor-wait"
+            title="Ingest live RSS feeds and synthesize a fresh 8-story newspaper issue"
+          >
+            {isGenerating ? (
+              <>
+                <RefreshCw className="w-3 h-3 animate-spin" />
+                <span>SYNTHESIZING...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3 h-3" />
+                <span>GENERATE FRESH EDITION</span>
+              </>
+            )}
+          </button>
+
           <button
             onClick={handlePrint}
             className="border border-[#111] bg-transparent hover:bg-[#111] hover:text-[#f9f6ef] font-mono text-xs uppercase tracking-wider px-3 py-1 rounded-none transition-colors cursor-pointer text-[#111111]"
