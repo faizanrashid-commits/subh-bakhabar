@@ -1,26 +1,137 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f9f6ef;
+  --foreground: #111111;
+  --newsprint-bg: #f9f6ef;
+  --newsprint-tint: #efeae0;
+  --newsprint-ink: #111111;
+  --newsprint-muted: #4a4742;
+  --newsprint-border: #c8c2b6;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+@theme {
+  --font-headline: var(--font-playfair), "Times New Roman", Times, Georgia, serif;
+  --font-serif-body: var(--font-source-serif), Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: var(--font-jetbrains-mono), "Courier New", monospace;
+  --color-newsprint: #f9f6ef;
+  --color-ink: #111111;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--newsprint-bg);
+  color: var(--newsprint-ink);
+  font-family: var(--font-source-serif), Georgia, Cambria, "Times New Roman", serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Classic Newspaper Rules */
+.newspaper-double-rule {
+  border-bottom: 4px double #111111;
+}
+
+.newspaper-double-rule-top {
+  border-top: 4px double #111111;
+}
+
+.newspaper-hairline-b {
+  border-bottom: 1px solid #c8c2b6;
+}
+
+.newspaper-hairline-t {
+  border-top: 1px solid #c8c2b6;
+}
+
+.newspaper-hairline-r {
+  border-right: 1px solid #c8c2b6;
+}
+
+.newspaper-hairline-l {
+  border-left: 1px solid #c8c2b6;
+}
+
+/* Authentic lithograph print effect for editorial cartoon */
+.editorial-lithograph {
+  filter: grayscale(100%) contrast(125%);
+  mix-blend-mode: multiply;
+}
+
+/* Drop cap formatting */
+.drop-cap::first-letter {
+  font-family: var(--font-playfair), "Times New Roman", Times, Georgia, serif;
+  font-size: 3.35rem;
+  line-height: 0.82;
+  float: left;
+  margin-top: 0.12rem;
+  margin-right: 0.45rem;
+  margin-bottom: -0.05rem;
+  font-weight: 700;
+  color: #111111;
+}
+
+/* Newspaper multi-column body text */
+.newspaper-columns-2 {
+  column-count: 2;
+  column-gap: 1.5rem;
+  column-rule: 1px solid #c8c2b6;
+}
+
+/* ==========================================================================
+   Print-Specific Stylesheet (@media print)
+   Produces genuine multi-column broadsheet PDF layout
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 1.2cm 1cm 1.2cm 1cm;
+  }
+
+  body {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    font-size: 9.5pt;
+    line-height: 1.35;
+  }
+
+  /* Hide interactive-only chrome */
+  .no-print,
+  .no-print * {
+    display: none !important;
+  }
+
+  /* Expand main container to full print width */
+  .newspaper-container {
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Prevent card splitting across pages */
+  .story-card-print {
+    break-inside: avoid;
+    page-break-inside: avoid;
+    margin-bottom: 1.5rem;
+  }
+
+  /* Ensure cartoons look crisp on paper */
+  .editorial-lithograph {
+    filter: grayscale(100%) contrast(150%) !important;
+    max-height: 260px !important;
+  }
+
+  /* Multi-column layouts in print */
+  .print-cols-2 {
+    column-count: 2 !important;
+    column-gap: 1.25rem !important;
+    column-rule: 1px solid #000000 !important;
+  }
+
+  /* Force background colors to print if needed */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }
